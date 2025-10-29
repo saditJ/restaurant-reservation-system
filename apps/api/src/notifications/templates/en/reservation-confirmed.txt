@@ -1,0 +1,6 @@
+Hi {{guestName}},
+
+Your reservation at {{venueName}} is confirmed for {{date}} at {{time}}.
+Please share confirmation code {{reservationCode}} when you arrive.
+
+We are looking forward to hosting your party of {{partySize}}.

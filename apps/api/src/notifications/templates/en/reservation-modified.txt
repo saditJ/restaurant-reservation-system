@@ -1,0 +1,6 @@
+Hi {{guestName}},
+
+Your reservation at {{venueName}} has been updated.
+New details: {{date}} at {{time}} for {{partySize}} guests, code {{reservationCode}}.
+
+Let us know if anything else needs adjusting.

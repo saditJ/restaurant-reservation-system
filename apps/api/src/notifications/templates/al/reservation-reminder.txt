@@ -1,0 +1,6 @@
+Pershendetje {{guestName}},
+
+Ky eshte nje kujtese per rezervimin tuaj tek {{venueName}} me {{date}} ne oren {{time}}.
+Kodi i konfirmimit eshte {{reservationCode}} per {{partySize}} persona.
+
+Na tregoni nese ju duhet ndonje ndryshim.

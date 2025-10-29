@@ -1,0 +1,74 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: reserve-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: reserve
+      POSTGRES_PASSWORD: reserve
+      POSTGRES_DB: reserve
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reserve']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - reserve
+  redis:
+    image: redis:7
+    container_name: reserve-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - reserve
+  api:
+    profiles:
+      - preview
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://reserve:reserve@postgres:5432/reserve?schema=public
+      REDIS_URL: redis://redis:6379/0
+      PII_SECRET: ${PII_SECRET:-preview-demo-secret}
+      PII_KEY_VERSION: ${PII_KEY_VERSION:-v1}
+      API_PORT: 3003
+      PORT: 3003
+      LOG_LEVEL: info
+      API_BASE_INTERNAL: http://localhost:3003
+      API_KEY: ${API_KEY:-preview-admin-key}
+      SWAGGER_API_KEY: ${SWAGGER_API_KEY:-preview-admin-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - '3003:3003'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3003/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - reserve
+
+volumes:
+  postgres-data:
+
+networks:
+  reserve:
+    driver: bridge

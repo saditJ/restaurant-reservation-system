@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+pnpm-store
+tmp
+dist
+coverage
+*.log
+docs
+**/.DS_Store

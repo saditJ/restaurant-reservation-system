@@ -1,0 +1,6 @@
+Pershendetje {{guestName}},
+
+Kemi marre kerkesen tuaj per rezervim tek {{venueName}} me date {{date}} ne oren {{time}}.
+Kodi juaj i referimit eshte {{reservationCode}} per {{partySize}} persona.
+
+Do t'ju njoftojme sapo te konfirmohet.

@@ -1,0 +1,38 @@
+{
+  "name": "reserve-platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "db:generate": "prisma generate --schema prisma/schema.prisma",
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
+    "db:reset": "prisma migrate reset --schema prisma/schema.prisma --force --skip-seed",
+    "db:seed": "tsx prisma/seed.ts",
+    "db:check": "tsx prisma/check.ts",
+    "db:studio": "prisma studio --schema prisma/schema.prisma",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "build": "pnpm -r --if-present build",
+    "prisma:validate": "prisma validate --schema prisma/schema.prisma",
+    "dev:api": "pnpm --filter api dev",
+    "dev:web": "pnpm -r --parallel --filter b2b-console --filter booking-widget dev",
+    "dev:provider": "pnpm --filter provider dev",
+    "dev:apps": "pnpm -r --parallel --filter api --filter b2b-console --filter booking-widget dev",
+    "stack:up": "docker compose up -d postgres",
+    "stack:down": "docker compose down --remove-orphans",
+    "stack:logs": "docker compose logs -f postgres",
+    "ci:wait": "pnpm exec tsx scripts/ci/wait-for-services.ts",
+    "ci:smoke": "pnpm exec tsx scripts/ci/smoke.ts",
+    "ci:k6-summary": "pnpm exec tsx scripts/ci/k6-summary.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "devDependencies": {
+    "@prisma/client": "^6.17.1",
+    "prisma": "^6.17.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.7.3"
+  }
+}

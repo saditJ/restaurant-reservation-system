@@ -1,0 +1,6 @@
+Pershendetje {{guestName}},
+
+Rezervimi juaj tek {{venueName}} eshte perditesuar.
+Detajet e reja: {{date}} ne oren {{time}} per {{partySize}} persona, kodi {{reservationCode}}.
+
+Na shkruani nese duhet ndonje ndryshim tjeter.

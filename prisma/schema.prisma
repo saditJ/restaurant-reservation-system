@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  SEATED
+  COMPLETED
+  CANCELLED
+}
+
+enum HoldStatus {
+  HELD
+  CONSUMED
+  EXPIRED
+}
+
+enum NotificationOutboxStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum WebhookDeliveryStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum WebhookEvent {
+  RESERVATION_CREATED
+  RESERVATION_UPDATED
+  RESERVATION_CANCELLED
+  RESERVATION_SEATED
+  RESERVATION_COMPLETED
+}
+
+model Venue {
+  id           String         @id @default(cuid())
+  name         String
+  timezone     String         @default("Europe/Tirane")
+  hours        Json?
+  turnTimeMin  Int            @default(10)
+  holdTtlMin   Int            @default(15)
+  defaultDurationMin Int      @default(120)
+  cancellationWindowMin Int   @default(120)
+  guestCanModifyUntilMin Int  @default(120)
+  noShowFeePolicy Boolean     @default(false)
+  pacingPerQuarterHour Int    @default(4)
+  retainPersonalDataDays Int  @default(365)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  tables       Table[]
+  reservations Reservation[]
+  holds        Hold[]
+  shifts       Shift[]
+  availabilityRules AvailabilityRule[]
+  blackouts    Blackout[]
+}
+
+model Table {
+  id        String   @id @default(cuid())
+  venueId   String
+  label     String
+  capacity  Int
+  joinGroupId String?
+  zone      String?
+  area      String?
+  x         Int?
+  y         Int?
+  width     Int?
+  height    Int?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue        Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  reservations Reservation[]
+  holds        Hold[]
+  assignments  ReservationTableAssignment[]
+
+  @@unique([venueId, label])
+  @@index([venueId, capacity])
+  @@index([venueId, zone])
+}
+
+model Reservation {
+  id              String            @id @default(cuid())
+  venueId         String
+  tableId         String?
+  code            String            @unique
+  status          ReservationStatus @default(PENDING)
+  guestName       String
+  guestPhone      String?
+  guestEmail      String?
+  guestPhoneSearch String?
+  guestPhoneLast4 String?
+  guestEmailSearch String?
+  piiKeyVersion   String?
+  piiAnonymizedAt DateTime?
+  piiAnonymizedReason String?
+  piiAnonymizedToken String?
+  partySize       Int
+  slotLocalDate   String            // YYYY-MM-DD in venue timezone
+  slotLocalTime   String            // HH:MM in venue timezone
+  slotStartUtc    DateTime
+  durationMinutes Int               @default(120)
+  notes           String?
+  channel         String?           // guest vs staff vs phone
+  createdBy       String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  venue       Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  table       Table? @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  hold        Hold?  @relation("HoldToReservation")
+  tables      ReservationTableAssignment[]
+  notifications NotificationOutbox[]
+  webhookDeliveries WebhookDelivery[]
+
+  @@unique([venueId, tableId, slotLocalDate, slotLocalTime], map: "uniq_reservation_venue_table_slot")
+  @@index([venueId, slotLocalDate, slotLocalTime])
+  @@index([status])
+  @@index([slotStartUtc], map: "idx_reservation_slot_start_utc")
+  @@index([venueId, slotLocalDate], map: "idx_reservation_venue_date")
+  @@index([venueId, slotStartUtc])
+  @@index([piiAnonymizedAt], map: "idx_reservation_pii_anonymized_at")
+  @@index([guestEmailSearch], map: "idx_reservation_guest_email_search")
+  @@index([guestPhoneSearch], map: "idx_reservation_guest_phone_search")
+  @@index([guestPhoneLast4], map: "idx_reservation_guest_phone_last4")
+}
+
+model ReservationTableAssignment {
+  reservationId String
+  tableId       String
+  assignedOrder Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  reservation Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  table       Table       @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@id([reservationId, tableId])
+  @@index([tableId])
+}
+
+model Hold {
+  id            String      @id @default(cuid())
+  venueId       String
+  tableId       String?
+  reservationId String?     @unique
+  status        HoldStatus  @default(HELD)
+  partySize     Int
+  slotLocalDate String
+  slotLocalTime String
+  slotStartUtc  DateTime
+  expiresAt     DateTime
+  createdBy     String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  metadata      Json?
+
+  venue       Venue       @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  table       Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  reservation Reservation? @relation("HoldToReservation", fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@unique([venueId, tableId, slotLocalDate, slotLocalTime], map: "uniq_hold_venue_table_slot")
+  @@unique([venueId, slotLocalDate, slotLocalTime, tableId], map: "uniq_hold_venue_slot_table_nullable")
+  @@index([status, expiresAt])
+  @@index([slotStartUtc], map: "idx_hold_slot_start_utc")
+  @@index([venueId, slotLocalDate], map: "idx_hold_venue_date")
+  @@index([venueId, slotStartUtc])
+}
+
+model Shift {
+  id             String   @id @default(cuid())
+  venueId        String
+  dayOfWeek      Int      // 0 (Sunday) - 6 (Saturday)
+  startLocalTime String   // HH:MM 24h
+  endLocalTime   String   // HH:MM 24h
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, dayOfWeek])
+}
+
+model AvailabilityRule {
+  id               String   @id @default(cuid())
+  venueId          String
+  minPartySize     Int
+  maxPartySize     Int
+  slotLengthMinutes Int
+  bufferMinutes    Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, minPartySize, maxPartySize])
+}
+
+model Blackout {
+  id        String   @id @default(cuid())
+  venueId   String
+  startDate String   // YYYY-MM-DD inclusive
+  endDate   String   // YYYY-MM-DD inclusive
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, startDate, endDate])
+}
+
+model NotificationOutbox {
+  id             String                    @id @default(cuid())
+  type           String
+  payload        Json
+  status         NotificationOutboxStatus  @default(PENDING)
+  attempts       Int                       @default(0)
+  lastError      String?
+  scheduledAt    DateTime                  @default(now())
+  reservationId  String?
+  guestContact   String?
+  createdAt      DateTime                  @default(now())
+  updatedAt      DateTime                  @updatedAt
+
+  reservation Reservation? @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([status, scheduledAt])
+  @@index([reservationId])
+}
+
+model WebhookEndpoint {
+  id          String    @id @default(cuid())
+  url         String
+  description String?   @db.VarChar(255)
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  deliveries WebhookDelivery[]
+
+  @@unique([url])
+}
+
+model WebhookDelivery {
+  id             String               @id @default(cuid())
+  endpointId     String
+  reservationId  String?
+  event          WebhookEvent
+  payload        Json
+  status         WebhookDeliveryStatus @default(PENDING)
+  attempts       Int                  @default(0)
+  lastError      String?
+  nextAttemptAt  DateTime             @default(now())
+  deliveredAt    DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  signatureInput String?
+
+  endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  reservation Reservation?    @relation(fields: [reservationId], references: [id], onDelete: SetNull)
+
+  @@index([endpointId, createdAt])
+  @@index([status, nextAttemptAt])
+}
+
+model IdempotencyKey {
+  id        String   @id
+  method    String
+  path      String
+  bodyHash  String
+  status    Int
+  response  Json
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([expiresAt], map: "idx_idempotency_expires_at")
+}
+
+model ApiKey {
+  id               String   @id @default(cuid())
+  name             String
+  hashedKey        String   @unique
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime?
+  isActive         Boolean  @default(true)
+  rateLimitPerMin  Int      @default(60)
+  burstLimit       Int      @default(30)
+  scopeJSON        Json?
+
+  @@index([isActive])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actor     String
+  action    String
+  resource  String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([resource, createdAt], map: "idx_audit_resource_created_at")
+  @@index([createdAt], map: "idx_audit_created_at")
+  @@index([action], map: "idx_audit_action")
+}

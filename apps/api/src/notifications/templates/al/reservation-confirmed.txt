@@ -1,0 +1,6 @@
+Pershendetje {{guestName}},
+
+Rezervimi juaj tek {{venueName}} u konfirmua per {{date}} ne oren {{time}}.
+Ju lutemi ruani dhe paraqisni kodin {{reservationCode}} kur te mberrini.
+
+Jemi te gatshem te mirepresim grupin tuaj prej {{partySize}} personash.

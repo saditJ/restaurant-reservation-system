@@ -1,0 +1,13 @@
+# Node & Next.js build outputs
+node_modules/
+**/.next/
+
+# Logs
+pnpm-debug.log*
+*.log
+
+# Environment files
+.env*
+
+# Misc
+temp-*

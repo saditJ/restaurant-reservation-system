@@ -1,0 +1,918 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/v1/reservations": {
+      "get": {
+        "operationId": "ReservationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      },
+      "post": {
+        "operationId": "ReservationsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      }
+    },
+    "/v1/reservations/{id}/suggestions": {
+      "post": {
+        "operationId": "ReservationsController_suggestions",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      }
+    },
+    "/v1/reservations/{id}/assign": {
+      "post": {
+        "operationId": "ReservationsController_assignTables",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      }
+    },
+    "/v1/reservations/{id}": {
+      "patch": {
+        "operationId": "ReservationsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      },
+      "delete": {
+        "operationId": "ReservationsController_remove",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      }
+    },
+    "/v1/reservations/{id}/status": {
+      "patch": {
+        "operationId": "ReservationsController_updateStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Reservations"
+        ]
+      }
+    },
+    "/v1/holds": {
+      "get": {
+        "operationId": "HoldsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      },
+      "post": {
+        "operationId": "HoldsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      }
+    },
+    "/v1/holds/{id}": {
+      "delete": {
+        "operationId": "HoldsController_cancel",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      }
+    },
+    "/v1/availability": {
+      "get": {
+        "operationId": "AvailabilityController_getAvailability",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Availability"
+        ]
+      }
+    },
+    "/v1/notifications/outbox": {
+      "get": {
+        "operationId": "NotificationsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/v1/notifications/outbox/{id}/requeue": {
+      "post": {
+        "operationId": "NotificationsController_requeue",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Notifications"
+        ]
+      }
+    },
+    "/v1/webhooks/endpoints": {
+      "post": {
+        "operationId": "WebhooksController_createEndpoint",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "type": "string",
+                      "format": "uri"
+                    },
+                    "description": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "isActive": {
+                      "type": "boolean"
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "url",
+                    "isActive",
+                    "createdAt",
+                    "updatedAt"
+                  ]
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      },
+      "get": {
+        "operationId": "WebhooksController_listEndpoints",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "url": {
+                        "type": "string",
+                        "format": "uri"
+                      },
+                      "description": {
+                        "type": "string",
+                        "nullable": true
+                      },
+                      "isActive": {
+                        "type": "boolean"
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      "updatedAt": {
+                        "type": "string",
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "url",
+                      "isActive",
+                      "createdAt",
+                      "updatedAt"
+                    ]
+                  }
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/v1/webhooks/deliveries": {
+      "get": {
+        "operationId": "WebhooksController_listDeliveries",
+        "parameters": [
+          {
+            "name": "offset",
+            "required": false,
+            "in": "query",
+            "description": "Skip N results for pagination",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "description": "Defaults to 25 results",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "description": "Filter by delivery status",
+            "schema": {
+              "enum": [
+                "PENDING",
+                "SUCCESS",
+                "FAILED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpointId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "endpointId": {
+                            "type": "string"
+                          },
+                          "event": {
+                            "type": "string",
+                            "enum": [
+                              "reservation.created",
+                              "reservation.updated",
+                              "reservation.cancelled",
+                              "reservation.seated",
+                              "reservation.completed"
+                            ]
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "SUCCESS",
+                              "FAILED"
+                            ]
+                          },
+                          "attempts": {
+                            "type": "integer"
+                          },
+                          "lastError": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "nextAttemptAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "deliveredAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "payload": {
+                            "type": "object",
+                            "properties": {
+                              "reservation": {
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "venueId": {
+                                    "type": "string"
+                                  },
+                                  "code": {
+                                    "type": "string"
+                                  },
+                                  "status": {
+                                    "type": "string"
+                                  },
+                                  "guestName": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "guestEmail": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "guestPhone": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "partySize": {
+                                    "type": "integer"
+                                  },
+                                  "slotLocalDate": {
+                                    "type": "string"
+                                  },
+                                  "slotLocalTime": {
+                                    "type": "string"
+                                  },
+                                  "slotStartUtc": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "durationMinutes": {
+                                    "type": "integer",
+                                    "nullable": true
+                                  },
+                                  "notes": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "channel": {
+                                    "type": "string",
+                                    "nullable": true
+                                  },
+                                  "createdAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "updatedAt": {
+                                    "type": "string",
+                                    "format": "date-time"
+                                  },
+                                  "venue": {
+                                    "type": "object",
+                                    "properties": {
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "name": {
+                                        "type": "string",
+                                        "nullable": true
+                                      },
+                                      "timezone": {
+                                        "type": "string",
+                                        "nullable": true
+                                      }
+                                    },
+                                    "required": [
+                                      "id",
+                                      "name",
+                                      "timezone"
+                                    ],
+                                    "nullable": true
+                                  }
+                                },
+                                "required": [
+                                  "id",
+                                  "venueId",
+                                  "code",
+                                  "status",
+                                  "partySize",
+                                  "slotLocalDate",
+                                  "slotLocalTime",
+                                  "slotStartUtc",
+                                  "createdAt",
+                                  "updatedAt"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "reservation"
+                            ]
+                          },
+                          "endpoint": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "url": {
+                                "type": "string",
+                                "format": "uri"
+                              },
+                              "description": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "isActive": {
+                                "type": "boolean"
+                              },
+                              "createdAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              },
+                              "updatedAt": {
+                                "type": "string",
+                                "format": "date-time"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "url",
+                              "isActive",
+                              "createdAt",
+                              "updatedAt"
+                            ],
+                            "nullable": true
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "endpointId",
+                          "event",
+                          "status",
+                          "attempts",
+                          "nextAttemptAt",
+                          "createdAt",
+                          "updatedAt",
+                          "payload"
+                        ]
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "total"
+                  ]
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/v1/webhooks/deliveries/{id}/redeliver": {
+      "post": {
+        "operationId": "WebhooksController_redeliver",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "endpointId": {
+                      "type": "string"
+                    },
+                    "event": {
+                      "type": "string",
+                      "enum": [
+                        "reservation.created",
+                        "reservation.updated",
+                        "reservation.cancelled",
+                        "reservation.seated",
+                        "reservation.completed"
+                      ]
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "PENDING",
+                        "SUCCESS",
+                        "FAILED"
+                      ]
+                    },
+                    "attempts": {
+                      "type": "integer"
+                    },
+                    "lastError": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "nextAttemptAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "deliveredAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "nullable": true
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "updatedAt": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "payload": {
+                      "type": "object",
+                      "properties": {
+                        "reservation": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "venueId": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string"
+                            },
+                            "guestName": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guestEmail": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "guestPhone": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "partySize": {
+                              "type": "integer"
+                            },
+                            "slotLocalDate": {
+                              "type": "string"
+                            },
+                            "slotLocalTime": {
+                              "type": "string"
+                            },
+                            "slotStartUtc": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "durationMinutes": {
+                              "type": "integer",
+                              "nullable": true
+                            },
+                            "notes": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "channel": {
+                              "type": "string",
+                              "nullable": true
+                            },
+                            "createdAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "updatedAt": {
+                              "type": "string",
+                              "format": "date-time"
+                            },
+                            "venue": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "nullable": true
+                                },
+                                "timezone": {
+                                  "type": "string",
+                                  "nullable": true
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "name",
+                                "timezone"
+                              ],
+                              "nullable": true
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "venueId",
+                            "code",
+                            "status",
+                            "partySize",
+                            "slotLocalDate",
+                            "slotLocalTime",
+                            "slotStartUtc",
+                            "createdAt",
+                            "updatedAt"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "reservation"
+                      ]
+                    },
+                    "endpoint": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "isActive": {
+                          "type": "boolean"
+                        },
+                        "createdAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "updatedAt": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "url",
+                        "isActive",
+                        "createdAt",
+                        "updatedAt"
+                      ],
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "endpointId",
+                    "event",
+                    "status",
+                    "attempts",
+                    "nextAttemptAt",
+                    "createdAt",
+                    "updatedAt",
+                    "payload"
+                  ]
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/v1/webhooks/secret": {
+      "get": {
+        "operationId": "WebhooksController_getSecret",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secret": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "secret"
+                  ]
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "tags": [
+          "Webhooks"
+        ]
+      }
+    },
+    "/v1/venues/{venueId}/settings": {
+      "get": {
+        "operationId": "VenuesController_getSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Venues"
+        ]
+      },
+      "put": {
+        "operationId": "VenuesController_updateSettings",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Venues"
+        ]
+      }
+    },
+    "/v1/venues/{venueId}/policies": {
+      "get": {
+        "operationId": "VenuesController_getPolicies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Venues"
+        ]
+      },
+      "put": {
+        "operationId": "VenuesController_updatePolicies",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Venues"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Reserve Platform API",
+    "description": "REST API for reservation management, webhooks, and integrations.",
+    "version": "0.0.1",
+    "contact": {}
+  },
+  "tags": [],
+  "servers": [],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key issued via the console settings"
+      }
+    },
+    "schemas": {}
+  }
+}

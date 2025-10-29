@@ -1,0 +1,6 @@
+Hi {{guestName}},
+
+Your reservation at {{venueName}} for {{date}} at {{time}} has been cancelled.
+If this was a mistake, contact the venue with code {{reservationCode}}.
+
+We hope to see you another time.

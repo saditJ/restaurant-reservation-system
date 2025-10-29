@@ -1,0 +1,17 @@
+Install: pnpm install
+Setup: copy env files from .env.example
+Infra: pnpm stack:up, pnpm db:migrate, pnpm db:seed
+Start: pnpm --filter api dev, pnpm --filter b2b-console dev, pnpm --filter booking-widget dev
+Health: curl http://localhost:3003/health, /ready, /metrics
+Tests: pnpm --filter api test, test:e2e
+CI: ci.yml covers lint, type-check, test, build, Prisma validation
+
+
+
+pm install
+npm stack:up
+PS C:\Users\USER\Desktop\sadit aps\reserve-platform copy t
+{ $env:DATABASE_URL = "postgres://reserve:reserve@localhosreserve?schema=public"; pnpm db:migrate }
+>>
+
+PS C:\Users\USER\Desktop\sadit aps\reserve-platform copy tnv:DATABASE_URL = "postgres://reserve:reserve@localhost:54rve?schema=public"

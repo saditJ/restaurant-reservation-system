@@ -1,0 +1,6 @@
+Hi {{guestName}},
+
+This is a reminder for your reservation at {{venueName}} on {{date}} at {{time}}.
+Your confirmation code is {{reservationCode}} for {{partySize}} guests.
+
+Reply to this message if you need to make changes.

@@ -1,0 +1,6 @@
+Pershendetje {{guestName}},
+
+Rezervimi juaj tek {{venueName}} per {{date}} ne oren {{time}} u anulua.
+Nese ishte gabim, kontaktoni lokalin me kodin {{reservationCode}}.
+
+Shpresojme te shihemi se shpejti.

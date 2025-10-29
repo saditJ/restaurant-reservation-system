@@ -1,0 +1,6 @@
+Hi {{guestName}},
+
+We received your reservation at {{venueName}} for {{date}} at {{time}}.
+Your reference code is {{reservationCode}} for a party of {{partySize}}.
+
+We will let you know once it is confirmed.

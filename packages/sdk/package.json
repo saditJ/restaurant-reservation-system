@@ -1,0 +1,26 @@
+{
+  "name": "@reserve/sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf dist",
+    "build": "tsc -p tsconfig.json",
+    "generate": "openapi-typescript ../../apps/api/openapi.json --output src/generated.ts",
+    "prepare": "pnpm run build"
+  },
+  "dependencies": {
+    "openapi-fetch": "^0.8.2",
+    "openapi-typescript-helpers": "^0.0.5"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.3.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.7.3"
+  }
+}
