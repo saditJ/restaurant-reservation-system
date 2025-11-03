@@ -398,6 +398,14 @@ export class ReservationsService {
             },
           });
 
+          await tx.waitlist.updateMany({
+            where: { holdId: hold.id },
+            data: {
+              status: 'CONVERTED',
+              expiresAt: null,
+            },
+          });
+
           const full = await tx.reservation.findUnique({
             where: { id: newReservation.id },
             include: {

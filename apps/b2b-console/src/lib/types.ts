@@ -233,4 +233,54 @@ export type NotificationOutboxListResponse = {
   total: number;
 };
 
+export type WaitlistStatus = 'WAITING' | 'OFFERED' | 'EXPIRED' | 'CONVERTED';
+
+export type WaitlistEntry = {
+  id: string;
+  venueId: string;
+  venueName: string;
+  venueTimezone: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  partySize: number;
+  desiredAt: string;
+  notes: string | null;
+  priority: number;
+  status: WaitlistStatus;
+  offerCode: string | null;
+  offerToken: string | null;
+  holdId: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  hold: null | {
+    id: string;
+    status: HoldStatus;
+    slotLocalDate: string;
+    slotLocalTime: string;
+    slotStartUtc: string;
+    expiresAt: string;
+  };
+};
+
+export type WaitlistListResponse = {
+  items: WaitlistEntry[];
+  total: number;
+};
+
+export type WaitlistOfferSummary = {
+  id: string;
+  waitlistId: string;
+  holdId: string | null;
+  offerCode: string | null;
+  guestName: string;
+  guestEmail: string | null;
+  venueId: string | null;
+  venueName: string | null;
+  status: WaitlistStatus | null;
+  sentAt: string;
+  expiresAt: string | null;
+};
+
 

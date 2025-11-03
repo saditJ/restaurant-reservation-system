@@ -48,8 +48,67 @@ enum CommTemplateKind {
   OFFER
 }
 
+enum MembershipRole {
+  OWNER
+  ADMIN
+  MANAGER
+  VIEWER
+}
+
+model Tenant {
+  id        String        @id @default(cuid())
+  name      String
+  slug      String        @unique
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  plan        TenantPlan?
+  venues      Venue[]
+  memberships Membership[]
+  apiKeys     ApiKey[]
+}
+
+model TenantPlan {
+  id              String   @id @default(cuid())
+  tenantId        String   @unique
+  planName        String
+  seatsMax        Int
+  storageMbMax    Int
+  venuesMax       Int
+  servicesMax     Int
+  localeCountMax  Int
+  isRateLimited   Boolean  @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model User {
+  id        String        @id @default(cuid())
+  emailEnc  String
+  nameEnc   String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  memberships Membership[]
+}
+
+model Membership {
+  userId    String
+  tenantId  String
+  role      MembershipRole
+  createdAt DateTime       @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@id([userId, tenantId])
+  @@index([tenantId])
+}
+
 model Venue {
   id           String         @id @default(cuid())
+  tenantId     String
   name         String
   timezone     String         @default("Europe/Tirane")
   hours        Json?
@@ -65,15 +124,20 @@ model Venue {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
   tables            Table[]
   reservations      Reservation[]
   holds             Hold[]
+  waitlist          Waitlist[]
   shifts            Shift[]
   availabilityRules AvailabilityRule[]
   blackoutDates     BlackoutDate[]
   pacingRules       PacingRule[]
   serviceBuffer     ServiceBuffer?
   commTemplates     CommTemplate[]
+
+  @@index([tenantId])
 }
 
 model Table {
@@ -183,6 +247,7 @@ model Hold {
   venue       Venue       @relation(fields: [venueId], references: [id], onDelete: Cascade)
   table       Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
   reservation Reservation? @relation("HoldToReservation", fields: [reservationId], references: [id], onDelete: SetNull)
+  waitlistEntry Waitlist?  @relation("HoldToWaitlist")
 
   @@unique([venueId, tableId, slotLocalDate, slotLocalTime], map: "uniq_hold_venue_table_slot")
   @@unique([venueId, slotLocalDate, slotLocalTime, tableId], map: "uniq_hold_venue_slot_table_nullable")
@@ -190,6 +255,31 @@ model Hold {
   @@index([slotStartUtc], map: "idx_hold_slot_start_utc")
   @@index([venueId, slotLocalDate], map: "idx_hold_venue_date")
   @@index([venueId, slotStartUtc])
+}
+
+model Waitlist {
+  id        String   @id @default(cuid())
+  venueId   String
+  name      String
+  emailEnc  String
+  phoneEnc  String?
+  partySize Int
+  desiredAt DateTime
+  notes     String?
+  priority  Int      @default(0)
+  status    String   @default("WAITING")
+  offerCode String?  @unique
+  offerToken String?
+  holdId    String?  @unique
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  hold  Hold? @relation("HoldToWaitlist", fields: [holdId], references: [id], onDelete: SetNull)
+
+  @@index([venueId, status], map: "idx_waitlist_venue_status")
+  @@index([venueId, desiredAt], map: "idx_waitlist_venue_desired_at")
 }
 
 model Shift {
@@ -342,6 +432,7 @@ model IdempotencyKey {
 
 model ApiKey {
   id               String   @id @default(cuid())
+  tenantId         String
   name             String
   hashedKey        String   @unique
   createdAt        DateTime @default(now())
@@ -351,7 +442,9 @@ model ApiKey {
   burstLimit       Int      @default(30)
   scopeJSON        Json?
 
-  @@index([isActive])
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, isActive])
 }
 
 model AuditLog {

@@ -1,6 +1,8 @@
 import { CommTemplateKind, HoldStatus, ReservationStatus } from '@prisma/client';
 import { createHash } from 'crypto';
 import prismaPiiModule from '../apps/api/src/privacy/prisma-pii';
+import { encryptPii } from '../apps/api/src/privacy/pii-crypto';
+import { DEFAULT_VENUE_ID, ensureDefaultVenue } from '../apps/api/src/utils/default-venue';
 
 type PrismaPiiModule = typeof import('../apps/api/src/privacy/prisma-pii');
 const { createPrismaWithPii } = prismaPiiModule as PrismaPiiModule;
@@ -82,6 +84,17 @@ type SeedVenue = {
   holds?: SeedHold[];
 };
 
+type WaitlistSeed = {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string | null;
+  partySize: number;
+  desiredAt: string;
+  notes?: string | null;
+  priority?: number;
+};
+
 const COMM_TEMPLATE_SEEDS: Array<{
   kind: CommTemplateKind;
   subject: string;
@@ -142,6 +155,29 @@ const COMM_TEMPLATE_SEEDS: Array<{
       '  </body>',
       '</html>',
     ].join('\n'),
+  },
+];
+
+const WAITLIST_SEEDS: WaitlistSeed[] = [
+  {
+    id: 'waitlist-default-1',
+    name: 'Jordan Blake',
+    email: 'jordan.blake@example.com',
+    phone: '+1 415 555 0198',
+    partySize: 2,
+    desiredAt: '2025-12-24T18:00:00.000Z',
+    notes: 'Anniversary dinner, prefers window seat.',
+    priority: 2,
+  },
+  {
+    id: 'waitlist-default-2',
+    name: 'Nia Dorsey',
+    email: 'nia.dorsey@example.com',
+    phone: '+1 917 555 0114',
+    partySize: 4,
+    desiredAt: '2025-12-24T20:30:00.000Z',
+    notes: 'Flexible on timing, celebrating promotion.',
+    priority: 1,
   },
 ];
 
@@ -416,6 +452,8 @@ async function main() {
     prisma.venue.deleteMany({}),
   ]);
 
+  await seedDefaultWaitlist();
+
   for (const venue of VENUES) {
     const totalSeats = venue.tables.reduce((sum, table) => sum + table.capacity, 0);
     const defaultCoverCapacity = Math.max(totalSeats, Math.ceil(totalSeats * 1.5));
@@ -562,4 +600,50 @@ async function seedApiKeys() {
       scopeJSON: ['default', 'admin'],
     },
   });
+}
+
+async function seedDefaultWaitlist() {
+  const venue = await ensureDefaultVenue(prisma);
+
+  await prisma.commTemplate.createMany({
+    data: COMM_TEMPLATE_SEEDS.map(({ kind, subject, html }) => ({
+      venueId: venue.id,
+      kind,
+      subject,
+      html,
+    })),
+    skipDuplicates: true,
+  });
+
+  if (WAITLIST_SEEDS.length === 0) return;
+
+  const records = WAITLIST_SEEDS.map((entry) => {
+    const email = encryptPii(entry.email);
+    const phone =
+      entry.phone && entry.phone.trim().length > 0
+        ? encryptPii(entry.phone).ciphertext
+        : null;
+
+    return {
+      id: entry.id,
+      venueId: venue.id,
+      name: entry.name,
+      emailEnc: email.ciphertext,
+      phoneEnc: phone,
+      partySize: entry.partySize,
+      desiredAt: new Date(entry.desiredAt),
+      notes: entry.notes ?? null,
+      priority: entry.priority ?? 0,
+      status: 'WAITING',
+    };
+  });
+
+  await prisma.waitlist.createMany({
+    data: records,
+    skipDuplicates: true,
+  });
+
+  console.log(
+    `Seeded ${records.length} waitlist rows for ${venue.name} (${DEFAULT_VENUE_ID}).`,
+  );
 }

@@ -221,3 +221,40 @@ export function apiJSON<T>(
       throw new Error(`Unsupported method ${method}`);
   }
 }
+
+export async function listWaitlist(params: {
+  venueId?: string;
+  status?: string;
+  limit?: number;
+} = {}) {
+  const search = new URLSearchParams();
+  if (params.venueId) search.set('venueId', params.venueId);
+  if (params.status) search.set('status', params.status);
+  if (params.limit) search.set('limit', String(params.limit));
+  const query = search.toString();
+  const path = query ? `/waitlist?${query}` : '/waitlist';
+  return GET<import('./types').WaitlistListResponse>(path, { cache: 'no-store' });
+}
+
+export async function listRecentOffers(limit = 20) {
+  const search = new URLSearchParams();
+  if (limit) {
+    search.set('limit', String(limit));
+  }
+  const query = search.toString();
+  const path = query ? `/waitlist/offers/recent?${query}` : '/waitlist/offers/recent';
+  return GET<import('./types').WaitlistOfferSummary[]>(path, { cache: 'no-store' });
+}
+
+export async function offerWaitlist(
+  id: string,
+  body: { slotStart: string; ttlMinutes?: number },
+) {
+  return POST<import('./types').WaitlistEntry>(`/waitlist/${encodeURIComponent(id)}/offer`, body);
+}
+
+export async function expireWaitlist(id: string) {
+  return POST<import('./types').WaitlistEntry>(
+    `/waitlist/${encodeURIComponent(id)}/expire`,
+  );
+}

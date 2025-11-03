@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import HealthBadge from '../components/HealthBadge';
-import { apiGet } from '@/lib/api';
-import type { NotificationOutboxListResponse } from '@/lib/types';
+import { apiGet, listRecentOffers } from '@/lib/api';
+import type { NotificationOutboxListResponse, WaitlistOfferSummary } from '@/lib/types';
 import NotificationsClient from './NotificationsClient';
 
 const PAGE_SIZE = 25;
@@ -64,6 +64,8 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
     ? Number(response.total)
     : items.length;
 
+  const recentOffers = await listRecentOffers(20);
+
   return (
     <main className="min-h-screen bg-slate-50 px-6 py-8">
       <header className="flex items-center justify-between">
@@ -100,6 +102,7 @@ export default async function NotificationsPage({ searchParams }: PageProps) {
           initialStatus={statusParam}
           initialSearch={queryParam}
           initialPage={page}
+          recentOffers={recentOffers as WaitlistOfferSummary[]}
         />
       </div>
     </main>

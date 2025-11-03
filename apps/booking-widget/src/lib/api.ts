@@ -171,7 +171,8 @@ export async function createHold(body: {
   return apiFetch<Hold>('/holds', withJsonInit(payload, { method: 'POST' }));
 }
 
-export async function createReservation(body: {
+export async function createReservation(
+  body: {
   holdId: string;
   guestName: string;
   guestPhone: string | null;
@@ -180,7 +181,9 @@ export async function createReservation(body: {
   venueId?: string;
   channel?: string;
   createdBy?: string;
-}): Promise<Reservation> {
+},
+  options?: { idempotencyKey?: string },
+): Promise<Reservation> {
   const payload = {
     venueId: body.venueId ?? VENUE_ID,
     holdId: body.holdId,
@@ -193,9 +196,23 @@ export async function createReservation(body: {
     channel: body.channel ?? 'guest-web',
     createdBy: body.createdBy ?? 'guest-widget',
   };
+  const headers =
+    options?.idempotencyKey !== undefined
+      ? { 'Idempotency-Key': options.idempotencyKey }
+      : undefined;
   return apiFetch<Reservation>(
     '/reservations',
-    withJsonInit(payload, { method: 'POST' }),
+    withJsonInit(payload, {
+      method: 'POST',
+      headers,
+    }),
+  );
+}
+
+export async function convertWaitlistOffer(code: string, token: string): Promise<void> {
+  await apiFetch<unknown>(
+    `/waitlist/offer/${encodeURIComponent(code)}/convert`,
+    withJsonInit({ token }, { method: 'POST' }),
   );
 }
 

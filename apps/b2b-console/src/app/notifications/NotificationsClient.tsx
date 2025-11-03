@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   useCallback,
@@ -17,6 +17,8 @@ import type {
   NotificationOutboxEntry,
   NotificationOutboxListResponse,
   NotificationOutboxStatus,
+  WaitlistOfferSummary,
+  WaitlistStatus,
 } from '@/lib/types';
 
 const STATUS_FILTERS = ['ALL', 'PENDING', 'SENT', 'FAILED'] as const;
@@ -34,6 +36,7 @@ type NotificationsClientProps = {
   initialStatus: FilterStatus;
   initialSearch: string;
   initialPage: number;
+  recentOffers: WaitlistOfferSummary[];
 };
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -53,6 +56,23 @@ function titleCase(value: string) {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
 }
 
+function renderOfferStatus(status: WaitlistStatus | null) {
+  const normalized = (status ?? 'UNKNOWN').toUpperCase();
+  const tone: Record<string, string> = {
+    WAITING: 'bg-slate-100 text-slate-700',
+    OFFERED: 'bg-amber-100 text-amber-800',
+    EXPIRED: 'bg-rose-100 text-rose-700',
+    CONVERTED: 'bg-emerald-100 text-emerald-800',
+    UNKNOWN: 'bg-gray-100 text-gray-700',
+  };
+  const cls = tone[normalized] ?? tone.UNKNOWN;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-1 text-xs font-medium ${cls}`}>
+      {titleCase(normalized)}
+    </span>
+  );
+}
+
 export default function NotificationsClient({
   initialItems,
   initialTotal,
@@ -60,6 +80,7 @@ export default function NotificationsClient({
   initialStatus,
   initialSearch,
   initialPage,
+  recentOffers,
 }: NotificationsClientProps) {
   const [items, setItems] = useState(initialItems);
   const [total, setTotal] = useState(initialTotal);
@@ -71,6 +92,7 @@ export default function NotificationsClient({
   const [error, setError] = useState<string | null>(null);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const hasRecentOffers = recentOffers.length > 0;
 
   const pageCount = useMemo(() => {
     if (pageSize <= 0) return 1;
@@ -219,10 +241,63 @@ export default function NotificationsClient({
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             disabled={isPending}
           >
-            {isPending ? 'Refreshing…' : 'Refresh'}
+            {isPending ? 'Refreshing�' : 'Refresh'}
           </button>
         </div>
       </header>
+
+      {hasRecentOffers && (
+        <section className="mt-6 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-900">Recent waitlist offers</h2>
+            <span className="text-xs text-gray-500">
+              Showing {Math.min(recentOffers.length, 20)} most recent sends
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] table-fixed border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-500">
+                  <th className="w-28 py-2">Offer</th>
+                  <th className="w-36 py-2">Guest</th>
+                  <th className="w-40 py-2">Venue</th>
+                  <th className="w-36 py-2">Sent</th>
+                  <th className="w-36 py-2">Expires</th>
+                  <th className="w-28 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recentOffers.map((offer) => (
+                  <tr key={offer.id} className="border-b border-gray-100 last:border-none">
+                    <td className="py-2 align-top font-mono text-xs text-gray-700">
+                      {offer.offerCode ?? '—'}
+                    </td>
+                    <td className="py-2 align-top">
+                      <div className="font-medium text-gray-900">{offer.guestName}</div>
+                      {offer.guestEmail && (
+                        <div className="text-xs text-gray-500">{offer.guestEmail}</div>
+                      )}
+                    </td>
+                    <td className="py-2 align-top">
+                      <div className="text-gray-900">{offer.venueName ?? '—'}</div>
+                      {offer.venueId && (
+                        <div className="text-xs text-gray-500">{offer.venueId}</div>
+                      )}
+                    </td>
+                    <td className="py-2 align-top text-gray-800">
+                      {formatDate(offer.sentAt)}
+                    </td>
+                    <td className="py-2 align-top text-gray-800">
+                      {offer.expiresAt ? formatDate(offer.expiresAt) : '—'}
+                    </td>
+                    <td className="py-2 align-top">{renderOfferStatus(offer.status)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
         <form className="flex flex-1 items-center gap-2" onSubmit={handleSearchSubmit}>
@@ -325,11 +400,11 @@ export default function NotificationsClient({
                       {entry.reservation.guestName || 'Unknown guest'}
                     </div>
                     <div className="text-xs text-gray-500">
-                      {entry.reservation.code || '—'}
+                      {entry.reservation.code || '�'}
                     </div>
                   </td>
                   <td className="py-3 align-top">
-                    <div className="text-gray-900">{entry.guestContact || '—'}</div>
+                    <div className="text-gray-900">{entry.guestContact || '�'}</div>
                     {entry.reservation.slotLocalDate && (
                       <div className="text-xs text-gray-500">
                         {entry.reservation.slotLocalDate} {entry.reservation.slotLocalTime ?? ''}
@@ -349,7 +424,7 @@ export default function NotificationsClient({
                     {entry.lastError ? (
                       <span title={entry.lastError}>{entry.lastError}</span>
                     ) : (
-                      <span className="text-gray-400">—</span>
+                      <span className="text-gray-400">�</span>
                     )}
                   </td>
                   <td className="py-3 text-center align-top">
@@ -360,10 +435,10 @@ export default function NotificationsClient({
                         className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                         disabled={loadingId === entry.id}
                       >
-                        {loadingId === entry.id ? 'Requeuing…' : 'Requeue'}
+                        {loadingId === entry.id ? 'Requeuing�' : 'Requeue'}
                       </button>
                     ) : (
-                      <span className="text-xs text-gray-400">—</span>
+                      <span className="text-xs text-gray-400">�</span>
                     )}
                   </td>
                 </tr>
@@ -403,3 +478,8 @@ export default function NotificationsClient({
     </section>
   );
 }
+
+
+
+
+

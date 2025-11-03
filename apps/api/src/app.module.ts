@@ -4,14 +4,11 @@ import { LoggerModule } from 'nestjs-pino';
 import { Request, Response } from 'express';
 import { AvailabilityController } from './availability.controller';
 import { AvailabilityService } from './availability.service';
-import { AvailabilityPolicyService } from './availability/policy.service';
 import { AuthModule } from './auth/auth.module';
 import { ensureRequestId } from './common/middleware/request-id.middleware';
 import { HoldsCleanupService } from './holds.cleanup.service';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { HoldsController } from './holds.controller';
-import { HoldsService } from './holds.service';
 import { MetricsModule } from './metrics/metrics.module';
 import { ReservationsController } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
@@ -36,6 +33,8 @@ import { PrivacyController } from './privacy/privacy.controller';
 import { PrivacyService } from './privacy/privacy.service';
 import { AuditController } from './audit/audit.controller';
 import { CommsModule } from './comms/comms.module';
+import { HoldsModule } from './holds.module';
+import { WaitlistModule } from './waitlist/waitlist.module';
 
 @Module({
   imports: [
@@ -109,11 +108,12 @@ import { CommsModule } from './comms/comms.module';
     VenuesModule,
     AuthModule,
     CommsModule,
+    HoldsModule,
+    WaitlistModule,
   ],
   controllers: [
     AppController,
     ReservationsController,
-    HoldsController,
     AvailabilityController,
     NotificationsController,
     WebhooksController,
@@ -129,8 +129,6 @@ import { CommsModule } from './comms/comms.module';
     AppService,
     ReservationsService,
     SeatingService,
-    HoldsService,
-    AvailabilityPolicyService,
     AvailabilityService,
     NotificationsService,
     NotificationsAdminService,
