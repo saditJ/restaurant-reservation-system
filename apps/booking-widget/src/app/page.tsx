@@ -61,6 +61,17 @@ function roundToQuarterHour(base = new Date()): string {
   return `${hours}:${mins}`;
 }
 
+function normalizeTimeInput(value: string): string {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!match) {
+    return trimmed;
+  }
+  const hours = Math.min(23, Math.max(0, Number(match[1])));
+  const minutes = Math.min(59, Math.max(0, Number(match[2] ?? '0')));
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
 function pickAutoTable(
   tables: AvailabilityTable[],
   partySize: number,
@@ -363,6 +374,7 @@ export default function BookingWidget() {
   const [reservationError, setReservationError] = useState<string | null>(null);
 
   const availableTables = availability?.tables ?? [];
+  const timeInputLang = locale === 'al' ? 'sq-AL' : 'en-GB';
   async function loadAvailability(params: {
     date: string;
     time: string;
@@ -400,14 +412,22 @@ export default function BookingWidget() {
 
   async function handlePlanSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const success = await loadAvailability({ date, time, party });
+    const normalized = normalizeTimeInput(time);
+    if (normalized !== time) {
+      setTime(normalized);
+    }
+    const success = await loadAvailability({ date, time: normalized, party });
     if (success) {
       setStep('details');
     }
   }
 
   async function retryAvailability() {
-    const params = lastSearchParams ?? { date, time, party };
+    const normalized = normalizeTimeInput(time);
+    if (normalized !== time) {
+      setTime(normalized);
+    }
+    const params = lastSearchParams ?? { date, time: normalized, party };
     await loadAvailability(params);
   }
 
@@ -415,6 +435,11 @@ export default function BookingWidget() {
     event.preventDefault();
     setConsentError(null);
     setHoldError(null);
+
+    const normalizedTime = normalizeTimeInput(time);
+    if (normalizedTime !== time) {
+      setTime(normalizedTime);
+    }
 
     if (!consentTerms) {
       setConsentError(t('form.required'));
@@ -434,7 +459,7 @@ export default function BookingWidget() {
       const nextHold = await createHold({
         venueId: VENUE_ID,
         date,
-        time,
+        time: normalizedTime,
         partySize: party,
         tableId: autoTable.id,
         createdBy: 'guest-widget',
@@ -588,8 +613,14 @@ export default function BookingWidget() {
                     className="mt-1 w-full rounded-lg border px-3 py-2"
                     name="time"
                     onChange={(event) => setTime(event.target.value)}
+                    onBlur={(event) => setTime(normalizeTimeInput(event.target.value))}
                     required
-                    type="time"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="^([0-1]\\d|2[0-3]):[0-5]\\d$"
+                    placeholder="HH:MM"
+                    title={t('plan.time.placeholder')}
+                    lang={timeInputLang}
                     value={time}
                   />
                 </div>

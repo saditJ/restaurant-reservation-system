@@ -41,6 +41,13 @@ enum WebhookEvent {
   RESERVATION_COMPLETED
 }
 
+enum CommTemplateKind {
+  CONFIRM
+  REMINDER
+  CANCELLED
+  OFFER
+}
+
 model Venue {
   id           String         @id @default(cuid())
   name         String
@@ -53,16 +60,20 @@ model Venue {
   guestCanModifyUntilMin Int  @default(120)
   noShowFeePolicy Boolean     @default(false)
   pacingPerQuarterHour Int    @default(4)
+  reminderHoursBefore Int?
   retainPersonalDataDays Int  @default(365)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  tables       Table[]
-  reservations Reservation[]
-  holds        Hold[]
-  shifts       Shift[]
+  tables            Table[]
+  reservations      Reservation[]
+  holds             Hold[]
+  shifts            Shift[]
   availabilityRules AvailabilityRule[]
-  blackouts    Blackout[]
+  blackoutDates     BlackoutDate[]
+  pacingRules       PacingRule[]
+  serviceBuffer     ServiceBuffer?
+  commTemplates     CommTemplate[]
 }
 
 model Table {
@@ -104,6 +115,7 @@ model Reservation {
   guestPhoneLast4 String?
   guestEmailSearch String?
   piiKeyVersion   String?
+  reminderSentAt  DateTime?
   piiAnonymizedAt DateTime?
   piiAnonymizedReason String?
   piiAnonymizedToken String?
@@ -135,6 +147,7 @@ model Reservation {
   @@index([guestEmailSearch], map: "idx_reservation_guest_email_search")
   @@index([guestPhoneSearch], map: "idx_reservation_guest_phone_search")
   @@index([guestPhoneLast4], map: "idx_reservation_guest_phone_last4")
+  @@index([status, reminderSentAt, slotStartUtc], map: "idx_reservation_reminder_window")
 }
 
 model ReservationTableAssignment {
@@ -182,15 +195,18 @@ model Hold {
 model Shift {
   id             String   @id @default(cuid())
   venueId        String
-  dayOfWeek      Int      // 0 (Sunday) - 6 (Saturday)
-  startLocalTime String   // HH:MM 24h
-  endLocalTime   String   // HH:MM 24h
+  dow            Int      // 0 (Sunday) - 6 (Saturday)
+  startsAtLocal  DateTime @db.Time(0)
+  endsAtLocal    DateTime @db.Time(0)
+  capacitySeats  Int
+  capacityCovers Int
+  isActive       Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
-  @@index([venueId, dayOfWeek])
+  @@index([venueId, dow])
 }
 
 model AvailabilityRule {
@@ -208,18 +224,40 @@ model AvailabilityRule {
   @@index([venueId, minPartySize, maxPartySize])
 }
 
-model Blackout {
+model PacingRule {
+  id              String   @id @default(cuid())
+  venueId         String
+  windowMinutes   Int
+  maxReservations Int?
+  maxCovers       Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+}
+
+model BlackoutDate {
   id        String   @id @default(cuid())
   venueId   String
-  startDate String   // YYYY-MM-DD inclusive
-  endDate   String   // YYYY-MM-DD inclusive
+  date      DateTime @db.Date
   reason    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 
-  @@index([venueId, startDate, endDate])
+  @@index([venueId, date])
+}
+
+model ServiceBuffer {
+  id            String   @id @default(cuid())
+  venueId       String   @unique
+  beforeMinutes Int      @default(0)
+  afterMinutes  Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
 }
 
 model NotificationOutbox {
@@ -274,6 +312,19 @@ model WebhookDelivery {
 
   @@index([endpointId, createdAt])
   @@index([status, nextAttemptAt])
+}
+
+model CommTemplate {
+  id        String           @id @default(cuid())
+  venueId   String
+  kind      CommTemplateKind
+  subject   String
+  html      String
+  updatedAt DateTime         @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, kind])
 }
 
 model IdempotencyKey {

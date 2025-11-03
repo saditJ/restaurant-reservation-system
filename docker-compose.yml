@@ -33,6 +33,15 @@ services:
       retries: 10
     networks:
       - reserve
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: reserve-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025'
+      - '8025:8025'
+    networks:
+      - reserve
   api:
     profiles:
       - preview

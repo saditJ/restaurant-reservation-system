@@ -12,6 +12,11 @@ describe('MetricsController', () => {
   beforeEach(async () => {
     const prismaMock = {
       $transaction: jest.fn().mockResolvedValue([0, 0, 0, [], 0, 0, []]),
+      notificationOutbox: {
+        count: jest.fn().mockResolvedValue(0),
+        groupBy: jest.fn().mockResolvedValue([]),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     } as unknown as PrismaService;
 
     const module: TestingModule = await Test.createTestingModule({

@@ -36,6 +36,7 @@ const translations = {
     'plan.party': 'Party size',
     'plan.date': 'Date',
     'plan.time': 'Time',
+    'plan.time.placeholder': 'Use 24-hour format (HH:MM)',
     'plan.preference': 'Table preference',
     'plan.preference.none': 'No preference (auto-assign)',
     'plan.preference.warning':
@@ -175,6 +176,7 @@ const translations = {
     'plan.party': 'Numri i personave',
     'plan.date': 'Data',
     'plan.time': 'Ora',
+    'plan.time.placeholder': 'Përdor formatin 24-orësh (HH:MM)',
     'plan.preference': 'Preferenca e tavolinës',
     'plan.preference.none': 'Pa preferencë (caktohet automatikisht)',
     'plan.preference.warning':
@@ -309,6 +311,10 @@ const LocaleContext = createContext<LocaleContextValue | undefined>(undefined);
 
 const LOCAL_STORAGE_KEY = 'booking-widget:locale';
 const SUPPORTED_LOCALES: Locale[] = ['en', 'al'];
+const HTML_LANG: Record<Locale, string> = {
+  en: 'en-GB',
+  al: 'sq-AL',
+};
 
 function format(template: string, values?: Values) {
   if (!values) return template;
@@ -340,7 +346,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof document !== 'undefined') {
-      document.documentElement.lang = locale;
+      document.documentElement.lang = HTML_LANG[locale] ?? HTML_LANG.en;
     }
     if (typeof window !== 'undefined') {
       localStorage.setItem(LOCAL_STORAGE_KEY, locale);

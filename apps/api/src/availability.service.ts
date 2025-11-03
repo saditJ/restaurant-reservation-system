@@ -5,15 +5,19 @@ import {
 } from '@nestjs/common';
 import {
   AvailabilityRule,
-  Blackout,
+  BlackoutDate,
   HoldStatus,
+  PacingRule,
   Prisma,
   ReservationStatus,
+  ServiceBuffer,
   Shift,
   Table,
   Venue,
 } from '@prisma/client';
 import { PrismaService } from './prisma.service';
+import type { PolicyEvaluation, PolicySlot } from './availability/policy.service';
+import { AvailabilityPolicyService } from './availability/policy.service';
 import {
   assertValidDate,
   normalizeTimeTo24h,
@@ -78,12 +82,16 @@ type AvailabilityResponse = {
       expiresAt: Date;
     }>;
   };
+  policyHash: string;
+  policySlots: PolicySlot[];
 };
 
 type VenueWithConfig = Venue & {
   shifts: Shift[];
   availabilityRules: AvailabilityRule[];
-  blackouts: Blackout[];
+  blackoutDates: BlackoutDate[];
+  pacingRules: PacingRule[];
+  serviceBuffer: ServiceBuffer | null;
 };
 
 type ConflictBucket = {
@@ -99,10 +107,14 @@ const BLOCKING_RES_STATUS: ReservationStatus[] = [
 
 @Injectable()
 export class AvailabilityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly policy: AvailabilityPolicyService,
+  ) {}
 
   async getAvailability(
     request: AvailabilityRequest,
+    options: { policy?: PolicyEvaluation } = {},
   ): Promise<AvailabilityResponse> {
     const date = request.date?.trim();
     if (!date) throw new BadRequestException('date is required');
@@ -118,6 +130,12 @@ export class AvailabilityService {
     }
 
     const venue = await this.getVenueWithConfig(request.venueId);
+    const policyEvaluation =
+      options.policy ??
+      (await this.policy.evaluateDay({
+        venueId: venue.id,
+        date,
+      }));
     const rule = this.pickRule(venue.availabilityRules, partySize);
     const defaultDuration = this.resolveDefaultDurationMinutes(venue);
 
@@ -128,6 +146,7 @@ export class AvailabilityService {
         time,
         partySize,
         defaultDuration,
+        policyEvaluation,
       );
     }
 
@@ -138,16 +157,18 @@ export class AvailabilityService {
         time,
         partySize,
         rule.slotLengthMinutes,
+        policyEvaluation,
       );
     }
 
-    if (this.isBlackout(venue.blackouts, date)) {
+    if (this.isBlackout(venue.blackoutDates, date)) {
       return this.emptyAvailability(
         venue.id,
         date,
         time,
         partySize,
         rule.slotLengthMinutes,
+        policyEvaluation,
       );
     }
 
@@ -166,6 +187,7 @@ export class AvailabilityService {
         time,
         partySize,
         rule.slotLengthMinutes,
+        policyEvaluation,
       );
     }
 
@@ -285,6 +307,8 @@ export class AvailabilityService {
         reservations: conflicts.reservations,
         holds: conflicts.holds,
       },
+      policyHash: policyEvaluation.policyHash,
+      policySlots: policyEvaluation.slots,
     };
   }
 
@@ -292,16 +316,21 @@ export class AvailabilityService {
     const id = venueId?.trim() || DEFAULT_VENUE_ID;
     if (id === DEFAULT_VENUE_ID) {
       const venue = await ensureDefaultVenue(this.prisma);
-      const [shifts, availabilityRules, blackouts] = await Promise.all([
-        this.prisma.shift.findMany({ where: { venueId: id } }),
-        this.prisma.availabilityRule.findMany({ where: { venueId: id } }),
-        this.prisma.blackout.findMany({ where: { venueId: id } }),
-      ]);
+      const [shifts, availabilityRules, blackoutDates, pacingRules, serviceBuffer] =
+        await Promise.all([
+          this.prisma.shift.findMany({ where: { venueId: id } }),
+          this.prisma.availabilityRule.findMany({ where: { venueId: id } }),
+          this.prisma.blackoutDate.findMany({ where: { venueId: id } }),
+          this.prisma.pacingRule.findMany({ where: { venueId: id } }),
+          this.prisma.serviceBuffer.findUnique({ where: { venueId: id } }),
+        ]);
       return {
         ...venue,
         shifts,
         availabilityRules,
-        blackouts,
+        blackoutDates,
+        pacingRules,
+        serviceBuffer,
       };
     }
     const venue = await this.prisma.venue.findUnique({
@@ -309,7 +338,9 @@ export class AvailabilityService {
       include: {
         shifts: true,
         availabilityRules: true,
-        blackouts: true,
+        blackoutDates: true,
+        pacingRules: true,
+        serviceBuffer: true,
       },
     });
     if (!venue) throw new NotFoundException(`Venue ${id} not found`);
@@ -529,24 +560,33 @@ export class AvailabilityService {
     const weekday = this.getWeekday(date);
     const minutes = this.timeToMinutes(time);
 
-    const sameDay = shifts.filter((shift) => shift.dayOfWeek === weekday);
+    const sameDay = shifts.filter((shift) => shift.dow === weekday);
     if (
       sameDay.some((shift) =>
-        this.shiftContains(minutes, shift.startLocalTime, shift.endLocalTime),
+        this.shiftContains(
+          minutes,
+          this.shiftTime(shift.startsAtLocal),
+          this.shiftTime(shift.endsAtLocal),
+        ),
       )
     ) {
       return true;
     }
 
     const previousDay = (weekday + 6) % 7;
-    const wrappingShifts = shifts.filter(
-      (shift) =>
-        shift.dayOfWeek === previousDay &&
-        this.timeToMinutes(shift.endLocalTime) <=
-          this.timeToMinutes(shift.startLocalTime),
-    );
+    const wrappingShifts = shifts.filter((shift) => {
+      if (shift.dow !== previousDay) return false;
+      const start = this.timeToMinutes(this.shiftTime(shift.startsAtLocal));
+      const end = this.timeToMinutes(this.shiftTime(shift.endsAtLocal));
+      return end <= start;
+    });
+
     return wrappingShifts.some((shift) =>
-      this.shiftContains(minutes, '00:00', shift.endLocalTime),
+      this.shiftContains(
+        minutes,
+        '00:00',
+        this.shiftTime(shift.endsAtLocal),
+      ),
     );
   }
 
@@ -563,9 +603,9 @@ export class AvailabilityService {
     return timeMinutes >= startMinutes || timeMinutes < endMinutes;
   }
 
-  private isBlackout(blackouts: Blackout[], date: string) {
+  private isBlackout(blackouts: BlackoutDate[], date: string) {
     for (const blackout of blackouts) {
-      if (blackout.startDate <= date && date <= blackout.endDate) {
+      if (this.formatDate(blackout.date) === date) {
         return true;
       }
     }
@@ -603,6 +643,16 @@ export class AvailabilityService {
     return hours * 60 + minutes;
   }
 
+  private shiftTime(value: Date) {
+    const hours = value.getUTCHours();
+    const minutes = value.getUTCMinutes();
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  private formatDate(value: Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
   private overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
     return aStart < bEnd && bStart < aEnd;
   }
@@ -613,6 +663,7 @@ export class AvailabilityService {
     time: string,
     partySize: number,
     durationMinutes: number,
+    policy: PolicyEvaluation,
   ): AvailabilityResponse {
     return {
       requested: {
@@ -632,6 +683,8 @@ export class AvailabilityService {
         reservations: [],
         holds: [],
       },
+      policyHash: policy.policyHash,
+      policySlots: policy.slots,
     };
   }
 }

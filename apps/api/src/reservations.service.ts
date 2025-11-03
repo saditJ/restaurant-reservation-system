@@ -3,9 +3,11 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
+  CommTemplateKind,
   HoldStatus,
   Prisma,
   ReservationStatus,
@@ -32,6 +34,7 @@ import { WebhooksService } from './webhooks/webhooks.service';
 import { ReservationWebhookEvent } from './webhooks/webhook.types';
 import { CacheService } from './cache/cache.service';
 import { deriveEmailSearch, derivePhoneSearch } from './privacy/pii-crypto';
+import { CommService, ReservationCommDetails } from './comms/comm.service';
 
 const STATUS_CAST = new Set<ReservationStatus>([
   ReservationStatus.PENDING,
@@ -105,6 +108,7 @@ export type ReservationDto = {
   slotLocalTime: string;
   slotStartUtc: string;
   durationMinutes: number;
+  reminderSentAt: string | null;
   tableId: string | null;
   tableLabel: string | null;
   tableArea: string | null;
@@ -160,10 +164,13 @@ type ListResult = {
 
 @Injectable()
 export class ReservationsService {
+  private readonly logger = new Logger(ReservationsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notifications: NotificationsService,
     private readonly webhooks: WebhooksService,
+    private readonly comms: CommService,
     private readonly cache: CacheService,
   ) {}
 
@@ -417,6 +424,9 @@ export class ReservationsService {
       ]);
 
       await this.invalidateAvailabilityForReservations(created);
+      void this.dispatchReservationComm(CommTemplateKind.CONFIRM, created, {
+        includeCalendar: true,
+      });
 
       return this.toDto(created, this.emptyConflict());
     } catch (error) {
@@ -591,6 +601,9 @@ export class ReservationsService {
       ]);
 
       await this.invalidateAvailabilityForReservations(created);
+      void this.dispatchReservationComm(CommTemplateKind.CONFIRM, created, {
+        includeCalendar: true,
+      });
 
       return this.toDto(created, this.emptyConflict());
     } catch (error) {
@@ -797,6 +810,12 @@ export class ReservationsService {
     ]);
 
     await this.invalidateAvailabilityForReservations(existing, result);
+    if (
+      existing.status !== ReservationStatus.CANCELLED &&
+      result.status === ReservationStatus.CANCELLED
+    ) {
+      void this.dispatchReservationComm(CommTemplateKind.CANCELLED, result);
+    }
 
     return this.toDto(result, this.emptyConflict());
   }
@@ -840,6 +859,12 @@ export class ReservationsService {
     ]);
 
     await this.invalidateAvailabilityForReservations(existing, updated);
+    if (
+      existing.status !== ReservationStatus.CANCELLED &&
+      updated.status === ReservationStatus.CANCELLED
+    ) {
+      void this.dispatchReservationComm(CommTemplateKind.CANCELLED, updated);
+    }
 
     return this.toDto(updated, this.emptyConflict());
   }
@@ -897,6 +922,61 @@ export class ReservationsService {
     }
     if (tasks.length === 0) return;
     await Promise.all(tasks);
+  }
+
+  private resolveCommsBaseUrl(): string {
+    const raw = process.env.COMMS_BASE_URL?.trim();
+    if (!raw) {
+      return 'https://example.test';
+    }
+    const normalized = raw.replace(/\s/g, '');
+    return normalized.replace(/\/+$/, '') || 'https://example.test';
+  }
+
+  private buildReservationCommDetails(
+    reservation: ReservationRecord,
+  ): ReservationCommDetails {
+    const baseUrl = this.resolveCommsBaseUrl();
+    const manageUrl = `${baseUrl}/reservations/${reservation.code}`;
+    const offerUrl = `${baseUrl}/offers/${reservation.venueId}`;
+    return {
+      id: reservation.id,
+      code: reservation.code,
+      guestName: reservation.guestName,
+      partySize: reservation.partySize,
+      slotStartUtc: reservation.slotStartUtc,
+      durationMinutes: reservation.durationMinutes,
+      venue: {
+        id: reservation.venueId,
+        name: reservation.venue.name,
+        timezone: reservation.venue.timezone,
+      },
+      manageUrl,
+      offerUrl,
+    };
+  }
+
+  private async dispatchReservationComm(
+    kind: CommTemplateKind,
+    reservation: ReservationRecord,
+    options: { includeCalendar?: boolean } = {},
+  ) {
+    if (!reservation.guestEmail) return;
+    try {
+      await this.comms.sendReservationEmail({
+        kind,
+        to: reservation.guestEmail,
+        reservation: this.buildReservationCommDetails(reservation),
+        includeCalendar: options.includeCalendar ?? false,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      this.logger.error(
+        `Failed to send ${kind} email for reservation ${reservation.id}: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    }
   }
 
   private resolveCreationEvents(
@@ -1187,6 +1267,9 @@ export class ReservationsService {
       slotLocalTime: reservation.slotLocalTime,
       slotStartUtc: reservation.slotStartUtc.toISOString(),
       durationMinutes,
+      reminderSentAt: reservation.reminderSentAt
+        ? reservation.reminderSentAt.toISOString()
+        : null,
       tableId: primary?.tableId ?? null,
       tableLabel: primary?.label ?? null,
       tableArea: primary?.area ?? null,

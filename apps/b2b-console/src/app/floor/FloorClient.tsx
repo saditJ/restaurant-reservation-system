@@ -34,6 +34,15 @@ type TableSummary = {
 const AUTO_REFRESH_MS = 30_000;
 const DEFAULT_RESERVATION_LIMIT = 400;
 
+const normalizeTime = (value: string) => {
+  const trimmed = value.trim();
+  const match = trimmed.match(/^(\d{1,2})(?::(\d{1,2}))?$/);
+  if (!match) return trimmed;
+  const hours = Math.min(23, Math.max(0, Number(match[1])));
+  const minutes = Math.min(59, Math.max(0, Number(match[2] ?? '0')));
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+};
+
 const isHttpUrl = (value: string | null | undefined) => {
   if (typeof value !== 'string') return false;
   const trimmed = value.trim().toLowerCase();
@@ -257,12 +266,15 @@ export default function FloorClient({
         </label>
         <label className="flex items-center gap-2 text-sm">
           <span className="text-xs uppercase tracking-wide text-gray-500">Time</span>
-          <input
-            type="time"
-            className="rounded border px-3 py-2"
-            value={time}
-            onChange={(event) => setTime(event.target.value)}
-          />
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="^([0-1]\\d|2[0-3]):[0-5]\\d$"
+              placeholder="HH:MM"
+              className="rounded border px-3 py-2"
+              value={time}
+              onChange={(event) => setTime(event.target.value)}
+            />
         </label>
         <label className="flex items-center gap-2 text-sm">
           <span className="text-xs uppercase tracking-wide text-gray-500">Party size</span>

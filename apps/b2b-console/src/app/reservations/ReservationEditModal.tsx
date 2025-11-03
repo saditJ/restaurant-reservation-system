@@ -201,12 +201,13 @@ export default function ReservationEditModal({
           <label className="flex flex-col gap-1">
             <span className="text-xs opacity-70">Time</span>
             <input
-              type="time"
+              type="text" inputMode="numeric" pattern="^([0-1]\\d|2[0-3]):[0-5]\\d$" placeholder="HH:MM"
               className="border rounded px-2 py-1"
               value={form.slotLocalTime || ''}
               onChange={(event: ChangeEvent<HTMLInputElement>) =>
                 updateForm({ slotLocalTime: event.target.value })
               }
+              lang="en-GB"
             />
           </label>
 

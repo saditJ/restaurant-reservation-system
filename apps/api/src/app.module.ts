@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { Request, Response } from 'express';
 import { AvailabilityController } from './availability.controller';
 import { AvailabilityService } from './availability.service';
+import { AvailabilityPolicyService } from './availability/policy.service';
 import { AuthModule } from './auth/auth.module';
 import { ensureRequestId } from './common/middleware/request-id.middleware';
 import { HoldsCleanupService } from './holds.cleanup.service';
@@ -26,10 +27,15 @@ import { CacheModule } from './cache/cache.module';
 import { DatabaseModule } from './database/database.module';
 import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ApiKeysController } from './admin/api-keys.controller';
+import { AdminShiftsController } from './admin/shifts.controller';
+import { AdminPacingRulesController } from './admin/pacing-rules.controller';
+import { AdminBlackoutsController } from './admin/blackouts.controller';
+import { AdminServiceBuffersController } from './admin/service-buffers.controller';
 import { IdempotencyModule } from './idempotency/idempotency.module';
 import { PrivacyController } from './privacy/privacy.controller';
 import { PrivacyService } from './privacy/privacy.service';
 import { AuditController } from './audit/audit.controller';
+import { CommsModule } from './comms/comms.module';
 
 @Module({
   imports: [
@@ -102,6 +108,7 @@ import { AuditController } from './audit/audit.controller';
     IdempotencyModule,
     VenuesModule,
     AuthModule,
+    CommsModule,
   ],
   controllers: [
     AppController,
@@ -111,6 +118,10 @@ import { AuditController } from './audit/audit.controller';
     NotificationsController,
     WebhooksController,
     ApiKeysController,
+    AdminShiftsController,
+    AdminPacingRulesController,
+    AdminBlackoutsController,
+    AdminServiceBuffersController,
     PrivacyController,
     AuditController,
   ],
@@ -119,6 +130,7 @@ import { AuditController } from './audit/audit.controller';
     ReservationsService,
     SeatingService,
     HoldsService,
+    AvailabilityPolicyService,
     AvailabilityService,
     NotificationsService,
     NotificationsAdminService,

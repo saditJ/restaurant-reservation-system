@@ -8,9 +8,6 @@ type MockedPrisma = {
   table: { findMany: jest.Mock };
   reservation: { findMany: jest.Mock };
   hold: { findMany: jest.Mock };
-  shift: { findMany: jest.Mock };
-  availabilityRule: { findMany: jest.Mock };
-  blackout: { findMany: jest.Mock };
 };
 
 const VENUE_ID = 'venue-test';
@@ -19,8 +16,113 @@ function weekday(date: string) {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
+function timeAsDate(time: string) {
+  const [hours, minutes] = time.split(':').map((part) => Number(part));
+  return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+}
+
+function dateOnly(value: string) {
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+function expandBlackoutRange(start: string, end: string) {
+  const dates: Date[] = [];
+  const cursor = dateOnly(start);
+  const limit = dateOnly(end);
+  while (cursor <= limit) {
+    dates.push(new Date(cursor.getTime()));
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return dates;
+}
+
 function makeVenue(overrides: Record<string, unknown> = {}) {
-  const base = {
+  const createdAt = new Date('2024-01-01T00:00:00Z');
+  const {
+    shifts: overrideShifts,
+    blackouts: overrideBlackouts,
+    blackoutDates: overrideBlackoutDates,
+    pacingRules: overridePacingRules,
+    serviceBuffer: overrideServiceBuffer,
+    ...rest
+  } = overrides;
+
+  const rawShifts: Array<Record<string, unknown>> = Array.isArray(overrideShifts)
+    ? overrideShifts
+    : [
+        {
+          id: 'shift-1',
+          venueId: VENUE_ID,
+          dayOfWeek: 4,
+          startLocalTime: '18:00',
+          endLocalTime: '22:00',
+          capacitySeats: 40,
+          capacityCovers: 160,
+          isActive: true,
+        },
+      ];
+
+  const shifts = rawShifts.map((shift, index) => {
+    const start = (shift as any).startsAt ?? (shift as any).startLocalTime;
+    const end = (shift as any).endsAt ?? (shift as any).endLocalTime;
+    return {
+      id: (shift as any).id ?? `shift-${index + 1}`,
+      venueId: (shift as any).venueId ?? VENUE_ID,
+      dow: (shift as any).dow ?? (shift as any).dayOfWeek ?? 0,
+      startsAtLocal:
+        (shift as any).startsAtLocal instanceof Date
+          ? (shift as any).startsAtLocal
+          : timeAsDate(typeof start === 'string' ? start : '18:00'),
+      endsAtLocal:
+        (shift as any).endsAtLocal instanceof Date
+          ? (shift as any).endsAtLocal
+          : timeAsDate(typeof end === 'string' ? end : '22:00'),
+      capacitySeats: (shift as any).capacitySeats ?? 40,
+      capacityCovers: (shift as any).capacityCovers ?? 160,
+      isActive: (shift as any).isActive ?? true,
+      createdAt: (shift as any).createdAt ?? createdAt,
+      updatedAt: (shift as any).updatedAt ?? createdAt,
+    };
+  });
+
+  const blackoutDates: Array<{
+    id: string;
+    venueId: string;
+    date: Date;
+    reason?: string | null;
+    createdAt: Date;
+    updatedAt: Date;
+  }> = Array.isArray(overrideBlackoutDates)
+    ? overrideBlackoutDates.map((entry: any, index: number) => ({
+        id: entry.id ?? `blackout-date-${index + 1}`,
+        venueId: entry.venueId ?? VENUE_ID,
+        date: entry.date instanceof Date ? entry.date : dateOnly(entry.date),
+        reason: entry.reason ?? null,
+        createdAt: entry.createdAt ?? createdAt,
+        updatedAt: entry.updatedAt ?? createdAt,
+      }))
+    : Array.isArray(overrideBlackouts)
+    ? overrideBlackouts.flatMap((entry: any, index: number) =>
+        expandBlackoutRange(entry.startDate, entry.endDate).map(
+          (date, innerIndex) => ({
+            id: `blackout-${index + 1}-${innerIndex + 1}`,
+            venueId: entry.venueId ?? VENUE_ID,
+            date,
+            reason: entry.reason ?? null,
+            createdAt: entry.createdAt ?? createdAt,
+            updatedAt: entry.updatedAt ?? createdAt,
+          }),
+        ),
+      )
+    : [];
+
+  const pacingRules = Array.isArray(overridePacingRules)
+    ? overridePacingRules
+    : [];
+
+  const serviceBuffer = overrideServiceBuffer ?? null;
+
+  return {
     id: VENUE_ID,
     name: 'Test Venue',
     timezone: 'Europe/Tirane',
@@ -32,8 +134,8 @@ function makeVenue(overrides: Record<string, unknown> = {}) {
     guestCanModifyUntilMin: 120,
     noShowFeePolicy: false,
     pacingPerQuarterHour: 4,
-    createdAt: new Date('2024-01-01T00:00:00Z'),
-    updatedAt: new Date('2024-01-01T00:00:00Z'),
+    createdAt,
+    updatedAt: createdAt,
     availabilityRules: [
       {
         id: 'rule-1',
@@ -42,32 +144,16 @@ function makeVenue(overrides: Record<string, unknown> = {}) {
         maxPartySize: 6,
         slotLengthMinutes: 90,
         bufferMinutes: 15,
-        createdAt: new Date('2024-01-01T00:00:00Z'),
-        updatedAt: new Date('2024-01-01T00:00:00Z'),
+        createdAt,
+        updatedAt: createdAt,
       },
     ],
-    shifts: [
-      {
-        id: 'shift-1',
-        venueId: VENUE_ID,
-        dayOfWeek: 4,
-        startLocalTime: '18:00',
-        endLocalTime: '22:00',
-        createdAt: new Date('2024-01-01T00:00:00Z'),
-        updatedAt: new Date('2024-01-01T00:00:00Z'),
-      },
-    ],
-    blackouts: [] as Array<{
-      id: string;
-      venueId: string;
-      startDate: string;
-      endDate: string;
-      reason?: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-    }>,
+    shifts,
+    blackoutDates,
+    pacingRules,
+    serviceBuffer,
+    ...rest,
   };
-  return { ...base, ...overrides };
 }
 
 function sampleTables(count: number) {
@@ -90,6 +176,7 @@ function sampleTables(count: number) {
 describe('AvailabilityService', () => {
   let prisma: MockedPrisma;
   let service: AvailabilityService;
+  let policy: { evaluateDay: jest.Mock };
 
   beforeEach(() => {
     prisma = {
@@ -97,11 +184,16 @@ describe('AvailabilityService', () => {
       table: { findMany: jest.fn() },
       reservation: { findMany: jest.fn() },
       hold: { findMany: jest.fn() },
-      shift: { findMany: jest.fn() },
-      availabilityRule: { findMany: jest.fn() },
-      blackout: { findMany: jest.fn() },
     };
-    service = new AvailabilityService(prisma as unknown as PrismaService);
+    policy = {
+      evaluateDay: jest.fn(({ date }) =>
+        Promise.resolve({ policyHash: `policy-${date}`, slots: [] }),
+      ),
+    };
+    service = new AvailabilityService(
+      prisma as unknown as PrismaService,
+      policy as unknown as any,
+    );
   });
 
   it('returns availability at opening edge but not past closing', async () => {
@@ -191,6 +283,7 @@ describe('AvailabilityService', () => {
           durationMinutes: 90,
           partySize: 2,
           code: 'R1',
+          tables: [],
         },
       ]),
     );
@@ -250,6 +343,7 @@ describe('AvailabilityService', () => {
           durationMinutes: 90,
           partySize: 2,
           code: 'PACE',
+          tables: [],
         },
       ]),
     );
@@ -326,6 +420,7 @@ describe('AvailabilityService', () => {
           durationMinutes: 90,
           partySize: 2,
           code: 'RLIM',
+          tables: [],
         },
       ]),
     );

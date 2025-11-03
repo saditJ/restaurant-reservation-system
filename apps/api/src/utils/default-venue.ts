@@ -15,6 +15,11 @@ const DEFAULT_HOURS = {
   sunday: [],
 };
 
+const toUtcTime = (time: string) => {
+  const [hours, minutes] = time.split(':').map((part) => Number(part));
+  return new Date(Date.UTC(1970, 0, 1, hours, minutes, 0, 0));
+};
+
 const DEFAULT_TABLES: Array<
   Prisma.TableCreateManyInput & { venueId: string }
 > = [
@@ -151,13 +156,13 @@ const DEFAULT_TABLES: Array<
 ];
 
 const DEFAULT_SHIFTS: Array<Prisma.ShiftCreateManyInput> = [
-  { dayOfWeek: 0, startLocalTime: '10:00', endLocalTime: '15:00', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 0, startLocalTime: '18:00', endLocalTime: '22:00', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 1, startLocalTime: '10:00', endLocalTime: '22:30', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 2, startLocalTime: '10:00', endLocalTime: '22:30', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 3, startLocalTime: '10:00', endLocalTime: '23:00', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 4, startLocalTime: '10:00', endLocalTime: '23:30', venueId: DEFAULT_VENUE_ID },
-  { dayOfWeek: 5, startLocalTime: '10:00', endLocalTime: '23:30', venueId: DEFAULT_VENUE_ID },
+  { dow: 0, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('15:00'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 0, startsAtLocal: toUtcTime('18:00'), endsAtLocal: toUtcTime('22:00'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 1, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('22:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 2, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('22:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 3, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:00'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 4, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 5, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
 ];
 
 const DEFAULT_RULES: Array<Prisma.AvailabilityRuleCreateManyInput> = [
@@ -166,14 +171,17 @@ const DEFAULT_RULES: Array<Prisma.AvailabilityRuleCreateManyInput> = [
   { venueId: DEFAULT_VENUE_ID, minPartySize: 5, maxPartySize: 8, slotLengthMinutes: 120, bufferMinutes: 15 },
 ];
 
-const DEFAULT_BLACKOUTS: Array<Prisma.BlackoutCreateManyInput> = [
-  {
-    venueId: DEFAULT_VENUE_ID,
-    startDate: '2025-12-24',
-    endDate: '2025-12-26',
-    reason: 'Holiday closure',
-  },
+const DEFAULT_BLACKOUTS: Array<Prisma.BlackoutDateCreateManyInput> = [
+  { venueId: DEFAULT_VENUE_ID, date: new Date('2025-12-24T00:00:00.000Z'), reason: 'Holiday closure' },
+  { venueId: DEFAULT_VENUE_ID, date: new Date('2025-12-25T00:00:00.000Z'), reason: 'Holiday closure' },
+  { venueId: DEFAULT_VENUE_ID, date: new Date('2025-12-26T00:00:00.000Z'), reason: 'Holiday closure' },
 ];
+
+const DEFAULT_SERVICE_BUFFER: Prisma.ServiceBufferUncheckedCreateInput = {
+  venueId: DEFAULT_VENUE_ID,
+  beforeMinutes: 10,
+  afterMinutes: 15,
+};
 
 /**
  * Ensure the default demo venue exists so the UI keeps working even if the
@@ -196,6 +204,7 @@ export async function ensureDefaultVenue(prisma: PrismaService) {
       guestCanModifyUntilMin: 120,
       noShowFeePolicy: false,
       pacingPerQuarterHour: 4,
+      reminderHoursBefore: null,
     },
   });
 
@@ -230,14 +239,21 @@ export async function ensureDefaultVenue(prisma: PrismaService) {
     });
   }
 
-  const existingBlackouts = await prisma.blackout.count({
+  const existingBlackouts = await prisma.blackoutDate.count({
     where: { venueId: DEFAULT_VENUE_ID },
   });
   if (existingBlackouts === 0) {
-    await prisma.blackout.createMany({
+    await prisma.blackoutDate.createMany({
       data: DEFAULT_BLACKOUTS,
       skipDuplicates: true,
     });
+  }
+
+  const buffer = await prisma.serviceBuffer.findUnique({
+    where: { venueId: DEFAULT_VENUE_ID },
+  });
+  if (!buffer) {
+    await prisma.serviceBuffer.create({ data: DEFAULT_SERVICE_BUFFER });
   }
 
   return venue;

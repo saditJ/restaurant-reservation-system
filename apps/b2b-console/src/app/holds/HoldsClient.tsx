@@ -283,12 +283,13 @@ export default function HoldsClient({
         </div>
         <div>
           <label className="block text-sm text-gray-600">Time</label>
-          <input
-            className="border rounded px-3 py-2"
-            type="time"
-            value={time}
-            onChange={(event) => setTime(event.target.value)}
-          />
+        <input
+          className="border rounded px-3 py-2"
+          type="text" inputMode="numeric" pattern="^([0-1]\\d|2[0-3]):[0-5]\\d$" placeholder="HH:MM"
+          value={time}
+          onChange={(event) => setTime(event.target.value)}
+
+        />
         </div>
         <div>
           <label className="block text-sm text-gray-600">Party</label>

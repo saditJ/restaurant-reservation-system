@@ -1,4 +1,4 @@
-import { HoldStatus, ReservationStatus } from '@prisma/client';
+import { CommTemplateKind, HoldStatus, ReservationStatus } from '@prisma/client';
 import { createHash } from 'crypto';
 import prismaPiiModule from '../apps/api/src/privacy/prisma-pii';
 
@@ -48,6 +48,7 @@ type SeedVenue = {
   guestCanModifyUntilMin: number;
   noShowFeePolicy: boolean;
   pacingPerQuarterHour: number;
+  reminderHoursBefore?: number | null;
   tables: Array<{
     id: string;
     label: string;
@@ -56,7 +57,21 @@ type SeedVenue = {
     zone?: string | null;
     joinGroupId?: string | null;
   }>;
-  shifts: Array<{ dayOfWeek: number; startLocalTime: string; endLocalTime: string }>;
+  shifts: Array<{
+    dow: number;
+    startsAt: string;
+    endsAt: string;
+    capacitySeats?: number;
+    capacityCovers?: number;
+    isActive?: boolean;
+  }>;
+  pacingRules: Array<{
+    windowMinutes: number;
+    maxReservations?: number | null;
+    maxCovers?: number | null;
+  }>;
+  blackoutDates: Array<{ date: string; reason?: string | null }>;
+  serviceBuffer: { beforeMinutes: number; afterMinutes: number };
   availabilityRules: Array<{
     minPartySize: number;
     maxPartySize: number;
@@ -66,6 +81,69 @@ type SeedVenue = {
   reservations?: SeedReservation[];
   holds?: SeedHold[];
 };
+
+const COMM_TEMPLATE_SEEDS: Array<{
+  kind: CommTemplateKind;
+  subject: string;
+  html: string;
+}> = [
+  {
+    kind: CommTemplateKind.CONFIRM,
+    subject: 'Reservation confirmed for {{guestName}}',
+    html: [
+      '<html>',
+      '  <body>',
+      '    <p>Hi {{guestName}},</p>',
+      '    <p>Your reservation for {{partySize}} guests at {{venueName}} on {{time}} is confirmed.</p>',
+      '    <p>Manage your reservation: <a href="{{manageUrl}}">{{manageUrl}}</a></p>',
+      '    <p>Exclusive offer: <a href="{{offerUrl}}">{{offerUrl}}</a></p>',
+      '  </body>',
+      '</html>',
+    ].join('\n'),
+  },
+  {
+    kind: CommTemplateKind.REMINDER,
+    subject: 'Reminder: upcoming visit to {{venueName}}',
+    html: [
+      '<html>',
+      '  <body>',
+      '    <p>Hello {{guestName}},</p>',
+      '    <p>This is a reminder of your {{partySize}} person reservation at {{venueName}} on {{time}}.</p>',
+      '    <p>Review or update details here: <a href="{{manageUrl}}">{{manageUrl}}</a></p>',
+      '    <p>Preview tonight\'s offer: <a href="{{offerUrl}}">{{offerUrl}}</a></p>',
+      '  </body>',
+      '</html>',
+    ].join('\n'),
+  },
+  {
+    kind: CommTemplateKind.CANCELLED,
+    subject: 'Reservation cancelled for {{guestName}}',
+    html: [
+      '<html>',
+      '  <body>',
+      '    <p>Hi {{guestName}},</p>',
+      '    <p>Your reservation for {{partySize}} at {{venueName}} on {{time}} has been cancelled.</p>',
+      '    <p>You can manage your bookings anytime: <a href="{{manageUrl}}">{{manageUrl}}</a></p>',
+      '    <p>See alternative offers: <a href="{{offerUrl}}">{{offerUrl}}</a></p>',
+      '  </body>',
+      '</html>',
+    ].join('\n'),
+  },
+  {
+    kind: CommTemplateKind.OFFER,
+    subject: 'A new offer from {{venueName}}',
+    html: [
+      '<html>',
+      '  <body>',
+      '    <p>Hello {{guestName}},</p>',
+      '    <p>We would love to host your party of {{partySize}} at {{venueName}} on {{time}}.</p>',
+      '    <p>Claim this offer now: <a href="{{offerUrl}}">{{offerUrl}}</a></p>',
+      '    <p>Need adjustments? Manage details here: <a href="{{manageUrl}}">{{manageUrl}}</a></p>',
+      '  </body>',
+      '</html>',
+    ].join('\n'),
+  },
+];
 
 const VENUES: SeedVenue[] = [
   {
@@ -88,16 +166,24 @@ const VENUES: SeedVenue[] = [
     guestCanModifyUntilMin: 120,
     noShowFeePolicy: false,
     pacingPerQuarterHour: 4,
+    reminderHoursBefore: 24,
     tables: [
       { id: 'BK-101', label: '101', capacity: 2, area: 'Dining', joinGroupId: 'BK-DUO' },
       { id: 'BK-102', label: '102', capacity: 4, area: 'Dining', joinGroupId: 'BK-DUO' },
       { id: 'BK-201', label: '201', capacity: 6, area: 'Patio', zone: 'Patio' },
     ],
     shifts: [
-      { dayOfWeek: 4, startLocalTime: '16:00', endLocalTime: '23:59' },
-      { dayOfWeek: 5, startLocalTime: '16:00', endLocalTime: '23:59' },
-      { dayOfWeek: 6, startLocalTime: '11:00', endLocalTime: '23:59' },
+      { dow: 0, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 1, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 2, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 3, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 4, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 5, startsAt: '18:00', endsAt: '23:00' },
+      { dow: 6, startsAt: '18:00', endsAt: '23:00' },
     ],
+    pacingRules: [{ windowMinutes: 15, maxReservations: 4, maxCovers: null }],
+    blackoutDates: [{ date: '2025-12-31', reason: 'NYE private event' }],
+    serviceBuffer: { beforeMinutes: 10, afterMinutes: 15 },
     availabilityRules: [
       { minPartySize: 1, maxPartySize: 2, slotLengthMinutes: 90, bufferMinutes: 15 },
       { minPartySize: 3, maxPartySize: 6, slotLengthMinutes: 120, bufferMinutes: 20 },
@@ -201,10 +287,17 @@ const VENUES: SeedVenue[] = [
       { id: 'LD-10', label: '10', capacity: 6, area: 'Lounge', zone: 'Fireplace' },
     ],
     shifts: [
-      { dayOfWeek: 4, startLocalTime: '12:00', endLocalTime: '00:30' },
-      { dayOfWeek: 5, startLocalTime: '12:00', endLocalTime: '00:30' },
-      { dayOfWeek: 6, startLocalTime: '10:00', endLocalTime: '23:30' },
+      { dow: 0, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 1, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 2, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 3, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 4, startsAt: '12:00', endsAt: '22:00' },
+      { dow: 5, startsAt: '18:00', endsAt: '23:00' },
+      { dow: 6, startsAt: '18:00', endsAt: '23:00' },
     ],
+    pacingRules: [{ windowMinutes: 15, maxReservations: 4, maxCovers: null }],
+    blackoutDates: [{ date: '2025-12-31', reason: 'NYE private event' }],
+    serviceBuffer: { beforeMinutes: 10, afterMinutes: 15 },
     availabilityRules: [
       { minPartySize: 1, maxPartySize: 2, slotLengthMinutes: 90, bufferMinutes: 10 },
       { minPartySize: 3, maxPartySize: 6, slotLengthMinutes: 120, bufferMinutes: 15 },
@@ -290,6 +383,16 @@ function buildSlot(timezone: string, date: string, time: string) {
   };
 }
 
+function toPolicyTime(time: string): Date {
+  const [hour, minute] = time.split(':').map(Number);
+  return new Date(Date.UTC(1970, 0, 1, hour, minute, 0, 0));
+}
+
+function toDateOnly(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 function resolveExpiry(hold: SeedHold): Date {
   if (hold.expireOffsetMinutes !== undefined) {
     return new Date(Date.now() + hold.expireOffsetMinutes * 60_000);
@@ -301,16 +404,39 @@ function resolveExpiry(hold: SeedHold): Date {
 async function main() {
   await prisma.$transaction([
     prisma.notificationOutbox.deleteMany({}),
+    prisma.commTemplate.deleteMany({}),
     prisma.hold.deleteMany({}),
     prisma.reservation.deleteMany({}),
     prisma.table.deleteMany({}),
     prisma.shift.deleteMany({}),
     prisma.availabilityRule.deleteMany({}),
-    prisma.blackout.deleteMany({}),
+    prisma.pacingRule.deleteMany({}),
+    prisma.blackoutDate.deleteMany({}),
+    prisma.serviceBuffer.deleteMany({}),
     prisma.venue.deleteMany({}),
   ]);
 
   for (const venue of VENUES) {
+    const totalSeats = venue.tables.reduce((sum, table) => sum + table.capacity, 0);
+    const defaultCoverCapacity = Math.max(totalSeats, Math.ceil(totalSeats * 1.5));
+    const shiftCreateData = venue.shifts.map((shift) => ({
+      dow: shift.dow,
+      startsAtLocal: toPolicyTime(shift.startsAt),
+      endsAtLocal: toPolicyTime(shift.endsAt),
+      capacitySeats: shift.capacitySeats ?? totalSeats,
+      capacityCovers: shift.capacityCovers ?? defaultCoverCapacity,
+      isActive: shift.isActive ?? true,
+    }));
+    const pacingRuleCreateData = venue.pacingRules.map((rule) => ({
+      windowMinutes: rule.windowMinutes,
+      maxReservations: rule.maxReservations ?? null,
+      maxCovers: rule.maxCovers ?? null,
+    }));
+    const blackoutDateCreateData = venue.blackoutDates.map((blackout) => ({
+      date: toDateOnly(blackout.date),
+      reason: blackout.reason ?? null,
+    }));
+
     await prisma.venue.create({
       data: {
         id: venue.id,
@@ -324,10 +450,28 @@ async function main() {
         guestCanModifyUntilMin: venue.guestCanModifyUntilMin,
         noShowFeePolicy: venue.noShowFeePolicy,
         pacingPerQuarterHour: venue.pacingPerQuarterHour,
+        reminderHoursBefore: venue.reminderHoursBefore ?? null,
         tables: { create: venue.tables },
-        shifts: { create: venue.shifts },
+        shifts: { create: shiftCreateData },
+        pacingRules: { create: pacingRuleCreateData },
+        blackoutDates: { create: blackoutDateCreateData },
+        serviceBuffer: {
+          create: {
+            beforeMinutes: venue.serviceBuffer.beforeMinutes,
+            afterMinutes: venue.serviceBuffer.afterMinutes,
+          },
+        },
         availabilityRules: { create: venue.availabilityRules },
       },
+    });
+
+    await prisma.commTemplate.createMany({
+      data: COMM_TEMPLATE_SEEDS.map(({ kind, subject, html }) => ({
+        venueId: venue.id,
+        kind,
+        subject,
+        html,
+      })),
     });
 
     if (venue.reservations?.length) {

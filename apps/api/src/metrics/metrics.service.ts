@@ -52,6 +52,9 @@ export class MetricsService implements OnModuleInit {
   private readonly idempotencyConflicts: Counter;
   private readonly rateLimitAllows: Counter<'keyId' | 'route'>;
   private readonly rateLimitDrops: Counter<'keyId' | 'route'>;
+  private readonly availabilityPolicyEval: Counter<'venueId'>;
+  private readonly commsSent: Counter<'kind'>;
+  private readonly commsFailed: Counter<'kind'>;
 
   constructor() {
     this.httpRequestDuration = new Histogram({
@@ -126,6 +129,13 @@ export class MetricsService implements OnModuleInit {
       registers: [this.registry],
     });
 
+    this.availabilityPolicyEval = new Counter({
+      name: 'availability_policy_eval_total',
+      help: 'Number of availability policy evaluations performed',
+      labelNames: ['venueId'],
+      registers: [this.registry],
+    });
+
     this.rateLimitAllows = new Counter({
       name: 'ratelimit_allows_total',
       help: 'Requests allowed by the API key rate limiter',
@@ -137,6 +147,20 @@ export class MetricsService implements OnModuleInit {
       name: 'ratelimit_drops_total',
       help: 'Requests rejected by the API key rate limiter',
       labelNames: ['keyId', 'route'],
+      registers: [this.registry],
+    });
+
+    this.commsSent = new Counter({
+      name: 'comms_sent_total',
+      help: 'Total number of communications sent successfully',
+      labelNames: ['kind'],
+      registers: [this.registry],
+    });
+
+    this.commsFailed = new Counter({
+      name: 'comms_failed_total',
+      help: 'Total number of communications that failed to send',
+      labelNames: ['kind'],
       registers: [this.registry],
     });
   }
@@ -318,6 +342,18 @@ export class MetricsService implements OnModuleInit {
       keyId,
       route,
     });
+  }
+
+  incrementAvailabilityPolicyEval(venueId: string) {
+    this.availabilityPolicyEval.inc({ venueId });
+  }
+
+  incrementCommsSent(kind: string) {
+    this.commsSent.inc({ kind: sanitizeType(kind) });
+  }
+
+  incrementCommsFailed(kind: string) {
+    this.commsFailed.inc({ kind: sanitizeType(kind) });
   }
 }
 
