@@ -2,7 +2,17 @@ import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@
 import type { Request } from 'express';
 import type { AuthenticatedApiKey } from './api-key.service';
 
-type ApiRequest = Request & { apiKey?: AuthenticatedApiKey };
+type ApiRequest = Request & {
+  apiKey?: AuthenticatedApiKey;
+  requestId?: string;
+  tenantId?: string;
+  apiKeyId?: string;
+  actor?: {
+    kind: 'service' | 'staff' | 'guest';
+    userId?: string;
+    roles?: string[];
+  };
+};
 
 @Injectable()
 export class AdminApiGuard implements CanActivate {

@@ -1,15 +1,14 @@
 import 'express';
-import type { AuthenticatedApiKey } from '../auth/api-key.service';
 
-declare global {
-  namespace Express {
-    interface Request {
-      requestId?: string;
-      id?: string;
-      responseDurationMs?: number;
-      apiKey?: AuthenticatedApiKey;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    requestId?: string;
+    tenantId?: string;
+    apiKeyId?: string;
+    actor?: {
+      kind: 'service' | 'staff' | 'guest';
+      userId?: string;
+      roles?: string[];
+    };
   }
 }
-
-export {};

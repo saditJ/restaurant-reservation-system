@@ -13,7 +13,17 @@ import { AdminApiGuard } from '../auth/admin-api.guard';
 import type { AuthenticatedApiKey } from '../auth/api-key.service';
 import { PrivacyService, PrivacyEraseResponse, PrivacyExportResponse } from './privacy.service';
 
-type ApiRequest = Request & { apiKey?: AuthenticatedApiKey };
+type ApiRequest = Request & {
+  apiKey?: AuthenticatedApiKey;
+  requestId?: string;
+  tenantId?: string;
+  apiKeyId?: string;
+  actor?: {
+    kind: 'service' | 'staff' | 'guest';
+    userId?: string;
+    roles?: string[];
+  };
+};
 
 type EraseRequestBody = {
   email: string;

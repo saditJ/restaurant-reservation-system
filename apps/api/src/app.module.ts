@@ -1,40 +1,44 @@
-// apps/api/src/app.module.ts
-import { Module } from '@nestjs/common';
-import { LoggerModule } from 'nestjs-pino';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { Request, Response } from 'express';
+import { LoggerModule } from 'nestjs-pino';
 import { AvailabilityController } from './availability.controller';
 import { AvailabilityService } from './availability.service';
-import { AuthModule } from './auth/auth.module';
-import { ensureRequestId } from './common/middleware/request-id.middleware';
-import { HoldsCleanupService } from './holds.cleanup.service';
+import { ApiKeysController } from './admin/api-keys.controller';
+import { AdminBlackoutsController } from './admin/blackouts.controller';
+import { AdminPacingRulesController } from './admin/pacing-rules.controller';
+import { AdminServiceBuffersController } from './admin/service-buffers.controller';
+import { AdminShiftsController } from './admin/shifts.controller';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuditController } from './audit/audit.controller';
+import { AuthModule } from './auth/auth.module';
+import { CacheModule } from './cache/cache.module';
+import { CommsModule } from './comms/comms.module';
+import { DatabaseModule } from './database/database.module';
+import { HoldsModule } from './holds.module';
+import { HoldsCleanupService } from './holds.cleanup.service';
+import { IdempotencyModule } from './idempotency/idempotency.module';
 import { MetricsModule } from './metrics/metrics.module';
+import { NotificationsController } from './notifications/notifications.controller';
+import { NotificationsAdminService } from './notifications/notifications.admin.service';
+import { NotificationsService } from './notifications/notifications.service';
+import { PrivacyController } from './privacy/privacy.controller';
+import { PrivacyService } from './privacy/privacy.service';
+import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ReservationsController } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
 import { SeatingService } from './seating.service';
 import { VenuesModule } from './venues/venues.module';
-import { NotificationsService } from './notifications/notifications.service';
-import { NotificationsController } from './notifications/notifications.controller';
-import { NotificationsAdminService } from './notifications/notifications.admin.service';
-import { WebhooksService } from './webhooks/webhooks.service';
-import { WebhooksController } from './webhooks/webhooks.controller';
-import { WebhooksAdminService } from './webhooks/webhooks.admin.service';
-import { CacheModule } from './cache/cache.module';
-import { DatabaseModule } from './database/database.module';
-import { RateLimitModule } from './rate-limit/rate-limit.module';
-import { ApiKeysController } from './admin/api-keys.controller';
-import { AdminShiftsController } from './admin/shifts.controller';
-import { AdminPacingRulesController } from './admin/pacing-rules.controller';
-import { AdminBlackoutsController } from './admin/blackouts.controller';
-import { AdminServiceBuffersController } from './admin/service-buffers.controller';
-import { IdempotencyModule } from './idempotency/idempotency.module';
-import { PrivacyController } from './privacy/privacy.controller';
-import { PrivacyService } from './privacy/privacy.service';
-import { AuditController } from './audit/audit.controller';
-import { CommsModule } from './comms/comms.module';
-import { HoldsModule } from './holds.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
+import { requestContextMiddleware } from './common/request-context';
+import { ensureRequestId } from './common/middleware/request-id.middleware';
+import { ApiKeyGuard } from './common/guards/api-key.guard';
+import { TenantGuard } from './common/guards/tenant.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { WebhooksAdminService } from './webhooks/webhooks.admin.service';
+import { WebhooksController } from './webhooks/webhooks.controller';
+import { WebhooksService } from './webhooks/webhooks.service';
 
 @Module({
   imports: [
@@ -136,9 +140,13 @@ import { WaitlistModule } from './waitlist/waitlist.module';
     WebhooksAdminService,
     HoldsCleanupService,
     PrivacyService,
+    { provide: APP_GUARD, useClass: ApiKeyGuard },
+    { provide: APP_GUARD, useClass: TenantGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
-export class AppModule {}
-
-
-
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(requestContextMiddleware).forRoutes('*');
+  }
+}

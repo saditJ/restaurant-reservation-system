@@ -1,9 +1,12 @@
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
 import { applyPiiProtections } from './privacy/prisma-pii';
+import { tenantScopeExtension } from './prisma/tenant-middleware';
+
+const ExtendedPrismaClient = PrismaClient.$extends(tenantScopeExtension);
 
 @Injectable()
-export class PrismaService extends PrismaClient implements OnModuleInit {
+export class PrismaService extends ExtendedPrismaClient implements OnModuleInit {
   constructor() {
     super();
     applyPiiProtections(this);

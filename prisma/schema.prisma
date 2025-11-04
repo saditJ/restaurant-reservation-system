@@ -56,22 +56,22 @@ enum MembershipRole {
 }
 
 model Tenant {
-  id        String        @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String        @unique
-  isActive  Boolean       @default(true)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  plan        TenantPlan?
-  venues      Venue[]
-  memberships Membership[]
-  apiKeys     ApiKey[]
+  venues Venue[]
+  plans  TenantPlan[]
+  members Membership[]
+  apiKeys ApiKey[]
 }
 
 model TenantPlan {
   id              String   @id @default(cuid())
-  tenantId        String   @unique
+  tenantId        String
   planName        String
   seatsMax        Int
   storageMbMax    Int
@@ -79,31 +79,35 @@ model TenantPlan {
   servicesMax     Int
   localeCountMax  Int
   isRateLimited   Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
 }
 
 model User {
-  id        String        @id @default(cuid())
+  id        String   @id @default(cuid())
   emailEnc  String
-  nameEnc   String
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  nameEnc   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  memberships Membership[]
+  members Membership[]
 }
 
 model Membership {
   userId    String
   tenantId  String
   role      MembershipRole
-  createdAt DateTime       @default(now())
+  createdAt DateTime @default(now())
 
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   @@id([userId, tenantId])
-  @@index([tenantId])
+  @@index([tenantId, role])
 }
 
 model Venue {
@@ -124,7 +128,7 @@ model Venue {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
   tables            Table[]
   reservations      Reservation[]
@@ -137,7 +141,7 @@ model Venue {
   serviceBuffer     ServiceBuffer?
   commTemplates     CommTemplate[]
 
-  @@index([tenantId])
+  @@index([tenantId], map: "Venue_tenantId_idx")
 }
 
 model Table {
@@ -442,9 +446,9 @@ model ApiKey {
   burstLimit       Int      @default(30)
   scopeJSON        Json?
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant Tenant @relation(fields: [tenantId], references: [id])
 
-  @@index([tenantId, isActive])
+  @@index([tenantId, isActive], map: "ApiKey_tenantId_isActive_idx")
 }
 
 model AuditLog {

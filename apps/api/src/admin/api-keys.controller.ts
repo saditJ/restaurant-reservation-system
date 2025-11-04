@@ -32,9 +32,11 @@ import {
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { RateLimitUsageService } from '../rate-limit/rate-limit-usage.service';
+import { DEFAULT_TENANT_ID } from '../utils/default-venue';
 
 type ApiKeySummary = {
   id: string;
+  tenantId: string;
   name: string;
   isActive: boolean;
   createdAt: string;
@@ -54,6 +56,11 @@ type ApiKeyWithSecret = {
 };
 
 class CreateApiKeyDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  tenantId?: string;
+
   @IsString()
   @IsNotEmpty()
   name!: string;
@@ -130,6 +137,7 @@ export class ApiKeysController {
   @RateLimit({ requestsPerMinute: 30, burstLimit: 10 })
   async create(@Body() body: CreateApiKeyDto): Promise<ApiKeyWithSecret> {
     const params: CreateApiKeyParams = {
+      tenantId: body.tenantId ?? DEFAULT_TENANT_ID,
       name: body.name,
       rateLimitPerMin: body.rateLimitPerMin,
       burstLimit: body.burstLimit,
@@ -182,6 +190,7 @@ export class ApiKeysController {
   ): ApiKeySummary {
     return {
       id: record.id,
+      tenantId: record.tenantId,
       name: record.name,
       isActive: record.isActive,
       createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,

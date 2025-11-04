@@ -2,11 +2,13 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ApiKey, Prisma } from '@prisma/client';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../prisma.service';
+import { DEFAULT_TENANT_ID } from '../utils/default-venue';
 
 export type ApiKeyScopes = string[];
 
 export type ApiKeyRecord = {
   id: string;
+  tenantId: string;
   name: string;
   hashedKey: string;
   createdAt: Date;
@@ -18,6 +20,7 @@ export type ApiKeyRecord = {
 };
 
 export type CreateApiKeyParams = {
+  tenantId?: string;
   name: string;
   rateLimitPerMin?: number;
   burstLimit?: number;
@@ -62,8 +65,9 @@ export class ApiKeyService implements OnModuleInit {
     return this.toRecord(record);
   }
 
-  async listKeys(): Promise<ApiKeyRecord[]> {
+  async listKeys(tenantId?: string): Promise<ApiKeyRecord[]> {
     const items = await this.prisma.apiKey.findMany({
+      where: tenantId ? { tenantId } : undefined,
       orderBy: [{ createdAt: 'desc' }],
     });
     return items.map((item) => this.toRecord(item));
@@ -73,6 +77,11 @@ export class ApiKeyService implements OnModuleInit {
     key: ApiKeyRecord;
     plaintext: string;
   }> {
+    const tenantId = (params.tenantId ?? DEFAULT_TENANT_ID).trim();
+    if (!tenantId) {
+      throw new Error('tenantId is required to create API keys');
+    }
+
     const plaintext = this.generatePlaintextKey();
     const hashedKey = this.hashKey(plaintext);
     const rateLimitPerMin = sanitizeRate(params.rateLimitPerMin);
@@ -81,6 +90,7 @@ export class ApiKeyService implements OnModuleInit {
 
     const created = await this.prisma.apiKey.create({
       data: {
+        tenantId,
         name: params.name.trim(),
         hashedKey,
         rateLimitPerMin,
@@ -182,12 +192,15 @@ export class ApiKeyService implements OnModuleInit {
       try {
         await this.prisma.apiKey.upsert({
           where: { hashedKey },
-          update: {},
+          update: {
+            tenantId: DEFAULT_TENANT_ID,
+          },
           create: {
             name: configuredKeys.length === 1 ? 'Bootstrap API Key' : `Bootstrap API Key ${index + 1}`,
             hashedKey,
             isActive: true,
             scopeJSON: ['default'],
+            tenantId: DEFAULT_TENANT_ID,
           },
         });
         index += 1;
@@ -220,6 +233,7 @@ export class ApiKeyService implements OnModuleInit {
   private toRecord(entity: ApiKey): ApiKeyRecord {
     return {
       id: entity.id,
+      tenantId: entity.tenantId,
       name: entity.name,
       hashedKey: entity.hashedKey,
       createdAt: entity.createdAt,

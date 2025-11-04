@@ -13,7 +13,17 @@ import { RateLimitService } from './rate-limit.service';
 import { RATE_LIMIT_OPTIONS, RateLimitOptions } from './rate-limit.decorator';
 import { RateLimitUsageService } from './rate-limit-usage.service';
 
-type ApiRequest = Request & { apiKey?: AuthenticatedApiKey };
+type ApiRequest = Request & {
+  apiKey?: AuthenticatedApiKey;
+  requestId?: string;
+  tenantId?: string;
+  apiKeyId?: string;
+  actor?: {
+    kind: 'service' | 'staff' | 'guest';
+    userId?: string;
+    roles?: string[];
+  };
+};
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {

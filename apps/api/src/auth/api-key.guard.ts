@@ -8,7 +8,17 @@ import {
 import type { Request } from 'express';
 import { ApiKeyService, AuthenticatedApiKey } from './api-key.service';
 
-type ApiRequest = Request & { apiKey?: AuthenticatedApiKey };
+type ApiRequest = Request & {
+  apiKey?: AuthenticatedApiKey;
+  requestId?: string;
+  tenantId?: string;
+  apiKeyId?: string;
+  actor?: {
+    kind: 'service' | 'staff' | 'guest';
+    userId?: string;
+    roles?: string[];
+  };
+};
 
 @Injectable()
 export class ApiKeyGuard implements CanActivate {
@@ -36,7 +46,11 @@ export class ApiKeyGuard implements CanActivate {
       throw new ForbiddenException('API key disabled');
     }
 
-    request.apiKey = this.apiKeys.toAuthenticated(record);
+    const authenticated = this.apiKeys.toAuthenticated(record);
+    request.apiKey = authenticated;
+    request.apiKeyId = record.id;
+    request.tenantId = record.tenantId;
+    request.actor = { kind: 'service', roles: ['integration'] };
     void this.apiKeys.touchLastUsed(record.id);
 
     return true;

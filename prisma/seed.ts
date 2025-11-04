@@ -1,13 +1,33 @@
-import { CommTemplateKind, HoldStatus, ReservationStatus } from '@prisma/client';
-import { createHash } from 'crypto';
-import prismaPiiModule from '../apps/api/src/privacy/prisma-pii';
-import { encryptPii } from '../apps/api/src/privacy/pii-crypto';
-import { DEFAULT_VENUE_ID, ensureDefaultVenue } from '../apps/api/src/utils/default-venue';
+import {
+  PrismaClient,
+  CommTemplateKind,
+  HoldStatus,
+  MembershipRole,
+  ReservationStatus,
+} from '@prisma/client';
 
-type PrismaPiiModule = typeof import('../apps/api/src/privacy/prisma-pii');
-const { createPrismaWithPii } = prismaPiiModule as PrismaPiiModule;
+process.env.DATABASE_URL ??= 'postgresql://reserve:reserve@localhost:5432/reserve?schema=public';
 
-const prisma = createPrismaWithPii();
+const prisma = new PrismaClient();
+
+const DEMO_TENANT_ID = 'tenant-demo';
+const DEMO_TENANT_SLUG = 'demo';
+const DEMO_TENANT_NAME = 'Demo Tenant';
+const DEMO_TENANT_PLAN_ID = 'tenant-plan-demo';
+const DEMO_USER_ID = 'user-demo-admin';
+
+const SANDBOX_TENANT_ID = 'tenant-sandbox';
+const SANDBOX_TENANT_SLUG = 'sandbox';
+const SANDBOX_TENANT_NAME = 'Sandbox Tenant';
+const SANDBOX_TENANT_PLAN_ID = 'tenant-plan-sandbox';
+
+const DEMO_SEED_API_KEY_HASH =
+  '01ea27eafbe8e5c7b672de58156a9277d5db106dafb491360d397f6b70b87bcc'; // sha256 of "demo-tenant-key"
+const DEFAULT_VENUE_ID = 'venue-main';
+
+function encryptSeed(value: string) {
+  return Buffer.from(value.trim(), 'utf8').toString('base64');
+}
 
 type SeedReservation = {
   id: string;
@@ -437,6 +457,118 @@ function resolveExpiry(hold: SeedHold): Date {
   return new Date(Date.now() + windowMinutes * 60_000);
 }
 
+async function seedTenants() {
+  const demoTenant = await prisma.tenant.upsert({
+    where: { slug: DEMO_TENANT_SLUG },
+    update: {
+      name: DEMO_TENANT_NAME,
+      isActive: true,
+    },
+    create: {
+      id: DEMO_TENANT_ID,
+      name: DEMO_TENANT_NAME,
+      slug: DEMO_TENANT_SLUG,
+      isActive: true,
+    },
+  });
+
+  await prisma.tenantPlan.upsert({
+    where: { id: DEMO_TENANT_PLAN_ID },
+    update: {
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+    create: {
+      id: DEMO_TENANT_PLAN_ID,
+      tenantId: demoTenant.id,
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+  });
+
+  const demoEmail = encryptSeed('demo-admin@example.test');
+  const demoName = encryptSeed('Demo Admin');
+  const demoUser = await prisma.user.upsert({
+    where: { id: DEMO_USER_ID },
+    update: {
+      emailEnc: demoEmail,
+      nameEnc: demoName,
+    },
+    create: {
+      id: DEMO_USER_ID,
+      emailEnc: demoEmail,
+      nameEnc: demoName,
+    },
+  });
+
+  await prisma.membership.upsert({
+    where: {
+      userId_tenantId: { userId: demoUser.id, tenantId: demoTenant.id },
+    },
+    update: {
+      role: MembershipRole.OWNER,
+    },
+    create: {
+      userId: demoUser.id,
+      tenantId: demoTenant.id,
+      role: MembershipRole.OWNER,
+    },
+  });
+
+  const sandboxTenant = await prisma.tenant.upsert({
+    where: { slug: SANDBOX_TENANT_SLUG },
+    update: {
+      name: SANDBOX_TENANT_NAME,
+      isActive: true,
+    },
+    create: {
+      id: SANDBOX_TENANT_ID,
+      name: SANDBOX_TENANT_NAME,
+      slug: SANDBOX_TENANT_SLUG,
+      isActive: true,
+    },
+  });
+
+  await prisma.tenantPlan.upsert({
+    where: { id: SANDBOX_TENANT_PLAN_ID },
+    update: {
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+    create: {
+      id: SANDBOX_TENANT_PLAN_ID,
+      tenantId: sandboxTenant.id,
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+  });
+
+  return {
+    demoTenantId: demoTenant.id,
+    sandboxTenantId: sandboxTenant.id,
+  };
+}
+
 async function main() {
   await prisma.$transaction([
     prisma.notificationOutbox.deleteMany({}),
@@ -450,9 +582,14 @@ async function main() {
     prisma.blackoutDate.deleteMany({}),
     prisma.serviceBuffer.deleteMany({}),
     prisma.venue.deleteMany({}),
+    prisma.apiKey.deleteMany({}),
+    prisma.membership.deleteMany({}),
+    prisma.user.deleteMany({}),
+    prisma.tenantPlan.deleteMany({}),
+    prisma.tenant.deleteMany({}),
   ]);
 
-  await seedDefaultWaitlist();
+  const { demoTenantId } = await seedTenants();
 
   for (const venue of VENUES) {
     const totalSeats = venue.tables.reduce((sum, table) => sum + table.capacity, 0);
@@ -478,6 +615,7 @@ async function main() {
     await prisma.venue.create({
       data: {
         id: venue.id,
+        tenantId: demoTenantId,
         name: venue.name,
         timezone: venue.timezone,
         hours: venue.hours,
@@ -550,6 +688,8 @@ async function main() {
     }
   }
 
+  await seedDefaultWaitlist(demoTenantId);
+
   for (const venue of VENUES) {
     const [tables, reservations, holds] = await Promise.all([
       prisma.table.count({ where: { venueId: venue.id } }),
@@ -562,7 +702,7 @@ async function main() {
     );
   }
 
-  await seedApiKeys();
+  await seedApiKeys(demoTenantId);
 }
 
 main()
@@ -574,36 +714,39 @@ main()
     await prisma.$disconnect();
   });
 
-function hashApiKey(value: string) {
-  return createHash('sha256').update(value).digest('hex');
-}
-
-async function seedApiKeys() {
-  const devPlaintext = 'dev-local-key';
+async function seedApiKeys(defaultTenantId: string) {
   await prisma.apiKey.upsert({
     where: { id: 'dev-local' },
     update: {
       name: 'Development Console',
-      hashedKey: hashApiKey(devPlaintext),
+      hashedKey: DEMO_SEED_API_KEY_HASH,
       isActive: true,
       rateLimitPerMin: 120,
       burstLimit: 60,
       scopeJSON: ['default', 'admin'],
+      tenantId: defaultTenantId,
     },
     create: {
       id: 'dev-local',
       name: 'Development Console',
-      hashedKey: hashApiKey(devPlaintext),
+      hashedKey: DEMO_SEED_API_KEY_HASH,
       isActive: true,
       rateLimitPerMin: 120,
       burstLimit: 60,
       scopeJSON: ['default', 'admin'],
+      tenantId: defaultTenantId,
     },
   });
 }
 
-async function seedDefaultWaitlist() {
-  const venue = await ensureDefaultVenue(prisma);
+async function seedDefaultWaitlist(tenantId: string) {
+  const venue = await prisma.venue.findUnique({
+    where: { id: DEFAULT_VENUE_ID },
+  });
+
+  if (!venue) {
+    throw new Error('Demo venue must exist before seeding waitlist entries.');
+  }
 
   await prisma.commTemplate.createMany({
     data: COMM_TEMPLATE_SEEDS.map(({ kind, subject, html }) => ({
@@ -618,17 +761,17 @@ async function seedDefaultWaitlist() {
   if (WAITLIST_SEEDS.length === 0) return;
 
   const records = WAITLIST_SEEDS.map((entry) => {
-    const email = encryptPii(entry.email);
+    const email = encryptSeed(entry.email);
     const phone =
       entry.phone && entry.phone.trim().length > 0
-        ? encryptPii(entry.phone).ciphertext
+        ? encryptSeed(entry.phone)
         : null;
 
     return {
       id: entry.id,
       venueId: venue.id,
       name: entry.name,
-      emailEnc: email.ciphertext,
+      emailEnc: email,
       phoneEnc: phone,
       partySize: entry.partySize,
       desiredAt: new Date(entry.desiredAt),

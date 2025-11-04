@@ -157,6 +157,3 @@ function createSwaggerGuard(allowedKeys: Set<string>) {
     next();
   };
 }
-
-
-

@@ -1,6 +1,11 @@
 import type { Prisma } from '@prisma/client';
 import type { PrismaService } from '../prisma.service';
 
+export const DEFAULT_TENANT_ID = 'tenant-demo';
+export const DEFAULT_TENANT_SLUG = 'demo';
+export const DEFAULT_TENANT_NAME = 'Demo Tenant';
+export const DEFAULT_TENANT_PLAN_ID = 'tenant-plan-demo';
+
 export const DEFAULT_VENUE_ID = 'venue-main';
 const DEFAULT_VENUE_NAME = 'Mock Bistro';
 const DEFAULT_TIMEZONE = 'Europe/Tirane';
@@ -184,16 +189,82 @@ const DEFAULT_SERVICE_BUFFER: Prisma.ServiceBufferUncheckedCreateInput = {
 };
 
 /**
+ * Ensure the default seed tenant exists so any venue bootstrapping can attach
+ * to it. Also guarantees a baseline plan for metering to reference.
+ */
+export async function ensureDefaultTenant(prisma: PrismaService) {
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: DEFAULT_TENANT_SLUG },
+    update: {
+      name: DEFAULT_TENANT_NAME,
+      isActive: true,
+    },
+    create: {
+      id: DEFAULT_TENANT_ID,
+      name: DEFAULT_TENANT_NAME,
+      slug: DEFAULT_TENANT_SLUG,
+      isActive: true,
+    },
+  });
+
+  await prisma.tenantPlan.upsert({
+    where: { id: DEFAULT_TENANT_PLAN_ID },
+    update: {
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+    create: {
+      id: DEFAULT_TENANT_PLAN_ID,
+      tenantId: tenant.id,
+      planName: 'Starter',
+      seatsMax: 2,
+      storageMbMax: 100,
+      venuesMax: 3,
+      servicesMax: 50,
+      localeCountMax: 1,
+      isRateLimited: true,
+    },
+  });
+
+  return tenant;
+}
+
+/**
  * Ensure the default demo venue exists so the UI keeps working even if the
  * local database has not been seeded. Also bootstraps a minimal set of tables
  * to keep availability and floor plans functional.
  */
-export async function ensureDefaultVenue(prisma: PrismaService) {
+export async function ensureDefaultVenue(
+  prisma: PrismaService,
+  tenantId: string = DEFAULT_TENANT_ID,
+) {
+  let tenantIdToUse = tenantId;
+  if (tenantId === DEFAULT_TENANT_ID) {
+    const tenant = await ensureDefaultTenant(prisma);
+    tenantIdToUse = tenant.id;
+  } else {
+    const existingTenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+    });
+    if (!existingTenant) {
+      const tenant = await ensureDefaultTenant(prisma);
+      tenantIdToUse = tenant.id;
+    }
+  }
+
   const venue = await prisma.venue.upsert({
     where: { id: DEFAULT_VENUE_ID },
-    update: {},
+    update: {
+      tenantId: tenantIdToUse,
+    },
     create: {
       id: DEFAULT_VENUE_ID,
+      tenantId: tenantIdToUse,
       name: DEFAULT_VENUE_NAME,
       timezone: DEFAULT_TIMEZONE,
       hours: DEFAULT_HOURS,

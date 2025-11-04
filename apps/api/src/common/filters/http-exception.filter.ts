@@ -27,6 +27,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const requestId = request?.requestId;
 
     const status = this.resolveStatus(exception);
     const code = this.resolveErrorCode(status, exception);
@@ -45,7 +46,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message: responseMessage,
         details:
           responseDetails ??
-          (request.requestId ? { request_id: request.requestId } : null),
+          (requestId ? { request_id: requestId } : null),
       },
     };
 
@@ -59,9 +60,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
         err: exception instanceof Error ? exception : undefined,
         statusCode: status,
         error_code: code,
-        request_id: request.requestId,
-        method: request.method,
-        path: request.originalUrl ?? request.url,
+        request_id: requestId,
+        method: request?.method,
+        path: request?.originalUrl ?? request?.url,
       },
       payload.message,
     );

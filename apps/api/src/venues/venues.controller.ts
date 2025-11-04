@@ -16,7 +16,17 @@ import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import type { AuthenticatedApiKey } from '../auth/api-key.service';
 
-type ApiRequest = Request & { apiKey?: AuthenticatedApiKey };
+type ApiRequest = Request & {
+  apiKey?: AuthenticatedApiKey;
+  requestId?: string;
+  tenantId?: string;
+  apiKeyId?: string;
+  actor?: {
+    kind: 'service' | 'staff' | 'guest';
+    userId?: string;
+    roles?: string[];
+  };
+};
 
 @Controller('v1/venues')
 export class VenuesController {
