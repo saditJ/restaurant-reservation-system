@@ -1,3 +1,5 @@
+import { notFound } from 'next/navigation';
+
 import { getVenueProfile } from '@/lib/api';
 import { formatCuisines, formatPriceTier } from '@/lib/format';
 import { BookButton } from '../../components/BookButton';
@@ -5,11 +7,17 @@ import { BookButton } from '../../components/BookButton';
 export const dynamic = 'force-dynamic';
 
 interface VenuePageProps {
-  params: { slug: string };
+  params: Promise<{ slug: string } | undefined>;
 }
 
 export default async function VenuePage({ params }: VenuePageProps) {
-  const venue = await getVenueProfile(params.slug);
+  const resolvedParams = await params;
+
+  if (!resolvedParams || !resolvedParams.slug) {
+    notFound();
+  }
+
+  const venue = await getVenueProfile(resolvedParams.slug);
 
   const backgroundImage = venue.heroImageUrl
     ? `linear-gradient(180deg, rgba(15,23,42,0.6) 0%, rgba(15,23,42,0.9) 100%), url(${venue.heroImageUrl})`
