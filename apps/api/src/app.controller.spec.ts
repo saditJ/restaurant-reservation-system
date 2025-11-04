@@ -27,7 +27,7 @@ describe('AppController', () => {
 
   describe('health endpoints', () => {
     it('should report health ok', () => {
-      expect(appController.health()).toEqual({ status: 'ok' });
+      expect(appController.health()).toEqual({ ok: true, service: 'api', port: 3003 });
     });
 
     it('should report liveness ok', () => {

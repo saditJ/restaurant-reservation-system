@@ -15,7 +15,8 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "forceConsistentCasingInFileNames": true,
-    "noImplicitAny": false
+    "noImplicitAny": false,
+    "isolatedModules": true
   },
   "include": ["src", "src/**/*.ts", "src/**/*.d.ts"],
   "exclude": ["node_modules", "dist"]
