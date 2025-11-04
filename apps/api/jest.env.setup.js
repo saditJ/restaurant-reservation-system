@@ -1,19 +1,21 @@
-process.env.PII_SECRET =
-  process.env.PII_SECRET ?? '0123456789abcdef0123456789abcdef';
-process.env.PII_KEY_VERSION = process.env.PII_KEY_VERSION ?? 'v1';
+if (!process.env.PII_SECRET) {
+  process.env.PII_SECRET = '0123456789abcdef0123456789abcdef';
+}
+if (!process.env.PII_KEY_VERSION) {
+  process.env.PII_KEY_VERSION = 'v1';
+}
 
-// Ensure Prisma enum exports are available during isolated tests.
 try {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const prisma = require('@prisma/client');
 
-  const ensureEnum = (name: string, value: Record<string, string>) => {
+  const ensureEnum = (name, values) => {
     if (!prisma[name]) {
       Object.defineProperty(prisma, name, {
         configurable: true,
         enumerable: true,
         writable: true,
-        value,
+        value: values,
       });
     }
   };
@@ -38,5 +40,5 @@ try {
     FAILED: 'FAILED',
   });
 } catch {
-  // ignore if prisma client is not available in this environment
+  // ignore when prisma client is unavailable
 }

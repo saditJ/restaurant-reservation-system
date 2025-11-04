@@ -101,7 +101,7 @@
     "coverageDirectory": "../coverage",
     "testEnvironment": "node",
     "setupFiles": [
-      "<rootDir>/../jest.env.setup.ts"
+      "<rootDir>/../jest.env.setup.js"
     ]
   }
   ,
