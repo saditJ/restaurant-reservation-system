@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install pnpm first so the `pnpm` binary exists for subsequent steps
+      # Install pnpm so pnpm is available for subsequent steps
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -69,9 +69,17 @@ jobs:
           done
           echo "=== pnpm-lock.yaml head ==="
           head -n 80 pnpm-lock.yaml || true
+          echo "=== pnpm-workspace.yaml ==="
+          cat pnpm-workspace.yaml || true
 
+      # Rebuild links so per-package bins are created/linked (addresses missing eslint/next)
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
+
+      # Lint — run the workspace lint scripts with pnpm exec from the workspace root.
+      # Using pnpm exec ensures binaries resolved from pnpm store/links are available.
       - name: Lint
-        run: pnpm -r --if-present lint
+        run: pnpm -w exec pnpm -r --if-present lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -147,6 +155,9 @@ jobs:
           ls -la node_modules/.bin || true
           ls -la apps/provider/node_modules/.bin || true
 
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
+
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
 
@@ -207,6 +218,9 @@ jobs:
           pnpm -w list --depth 0 || true
           ls -la node_modules/.bin || true
           ls -la apps/provider/node_modules/.bin || true
+
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -273,6 +287,9 @@ jobs:
           pnpm -w list --depth 0 || true
           ls -la node_modules/.bin || true
           ls -la apps/provider/node_modules/.bin || true
+
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -376,6 +393,9 @@ jobs:
           pnpm -w list --depth 0 || true
           ls -la node_modules/.bin || true
           ls -la apps/provider/node_modules/.bin || true
+
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
 
       - uses: grafana/setup-k6-action@v1
         with:
@@ -497,6 +517,9 @@ jobs:
           pnpm -w list --depth 0 || true
           ls -la node_modules/.bin || true
           ls -la apps/provider/node_modules/.bin || true
+
+      - name: Rebuild workspace links
+        run: pnpm -w rebuild || true
 
       - name: Start database dependencies
         run: docker compose up -d postgres redis
