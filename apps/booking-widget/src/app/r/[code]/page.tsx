@@ -31,8 +31,8 @@ type OfferResponse = {
 };
 
 type PageProps = {
-  params: { code: string };
-  searchParams?: Record<string, string | string[] | undefined>;
+  params: Promise<{ code: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 async function fetchOffer(code: string, token: string): Promise<OfferResult> {
@@ -61,14 +61,17 @@ async function fetchOffer(code: string, token: string): Promise<OfferResult> {
 }
 
 export default async function WaitlistOfferPage({ params, searchParams }: PageProps) {
-  const code = decodeURIComponent(params.code || '').trim();
+  const resolvedParams = await params;
+  const resolvedSearchParams = (await searchParams) ?? {};
+
+  const code = decodeURIComponent(resolvedParams.code || '').trim();
   if (!code) {
     return renderMessage('Offer not found', 'We could not locate this invitation. Please check the link in your email.');
   }
 
-  const tokenParam = Array.isArray(searchParams?.token)
-    ? searchParams?.token[searchParams.token.length - 1]
-    : searchParams?.token;
+  const tokenParam = Array.isArray(resolvedSearchParams.token)
+    ? resolvedSearchParams.token[resolvedSearchParams.token.length - 1]
+    : resolvedSearchParams.token;
   const token = typeof tokenParam === 'string' ? tokenParam.trim() : '';
   if (!token) {
     return renderMessage(
@@ -78,8 +81,9 @@ export default async function WaitlistOfferPage({ params, searchParams }: PagePr
   }
 
   const offer = await fetchOffer(code, token);
-  const confirmed = searchParams?.confirmed === '1';
-  const errorKey = typeof searchParams?.error === 'string' ? searchParams?.error : null;
+  const confirmed = resolvedSearchParams.confirmed === '1';
+  const errorKey =
+    typeof resolvedSearchParams.error === 'string' ? resolvedSearchParams.error : null;
 
   async function confirmReservation(formData: FormData) {
     'use server';

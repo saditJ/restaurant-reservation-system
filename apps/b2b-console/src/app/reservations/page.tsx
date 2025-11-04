@@ -8,9 +8,7 @@ type SortDir = 'asc' | 'desc';
 type FilterKey = (typeof STATUS_FILTERS)[number];
 
 type PageProps = {
-  searchParams?:
-    | Record<string, string | string[] | undefined>
-    | Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function getStringParam(value: string | string[] | undefined) {
@@ -21,8 +19,7 @@ function getStringParam(value: string | string[] | undefined) {
 }
 
 export default async function ReservationsPage({ searchParams }: PageProps) {
-  const resolvedSearchParams =
-    searchParams instanceof Promise ? await searchParams : searchParams ?? {};
+  const resolvedSearchParams = (await searchParams) ?? {};
 
   const statusParam = getStringParam(resolvedSearchParams.status);
   const filter: FilterKey = STATUS_FILTERS.includes(statusParam as FilterKey)

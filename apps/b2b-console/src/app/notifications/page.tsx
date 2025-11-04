@@ -9,9 +9,7 @@ const STATUS_FILTERS = ['ALL', 'PENDING', 'SENT', 'FAILED'] as const;
 type FilterStatus = (typeof STATUS_FILTERS)[number];
 
 type PageProps = {
-  searchParams?:
-    | Record<string, string | string[] | undefined>
-    | Promise<Record<string, string | string[] | undefined>>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function getStringParam(value: string | string[] | undefined) {
@@ -30,8 +28,7 @@ function normalizeStatus(value: string | undefined): FilterStatus {
 }
 
 export default async function NotificationsPage({ searchParams }: PageProps) {
-  const params =
-    searchParams instanceof Promise ? await searchParams : searchParams ?? {};
+  const params = (await searchParams) ?? {};
 
   const statusParam = normalizeStatus(
     getStringParam(params.status)?.toString(),
