@@ -44,11 +44,12 @@ jobs:
       - name: Install dependencies (include dev deps, create node_modules layout)
         env:
           NODE_ENV: development
+          PNPM_FROZEN_LOCKFILE: 'true'
         run: |
           pnpm -v
           node -v
           # Use shamefully-hoist so package-level bin links are available where per-package scripts expect them
-          pnpm install --frozen-lockfile --shamefully-hoist
+          pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
