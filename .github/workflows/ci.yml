@@ -30,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Install pnpm so `pnpm` is available
+      # Ensure pnpm binary exists first
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -41,41 +41,33 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies (include dev deps)
+      - name: Install dependencies (include dev deps, create node_modules layout)
         env:
           NODE_ENV: development
         run: |
           pnpm -v
           node -v
-          pnpm -w install --frozen-lockfile --include=dev
+          # Use shamefully-hoist so package-level bin links are available where per-package scripts expect them
+          pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
-          echo "=== versions ==="
-          node -v
-          pnpm -v
-          echo "=== pnpm config ==="
+          echo "node: $(node -v) pnpm: $(pnpm -v)"
           pnpm config get node-linker || true
-          pnpm store path || true
-          echo "=== workspace packages (root list) ==="
           pnpm -w list --depth 0 || true
-          echo "=== root node_modules/.bin ==="
+          echo "root node_modules/.bin:"
           ls -la node_modules/.bin || true
-          echo "=== check workspace package bins ==="
           for p in apps/api apps/market apps/provider apps/b2b-console apps/booking-widget; do
-            echo ">>> $p"
+            echo ">>> $p node_modules/.bin"
             ls -la $p/node_modules/.bin || true
-            ls -la $p/node_modules || true
           done
-          echo "=== pnpm-lock.yaml head ==="
-          head -n 80 pnpm-lock.yaml || true
 
       - name: Rebuild workspace links
         run: pnpm -w rebuild || true
 
       - name: Lint
-        # run the workspace recursive lint via pnpm exec so binaries resolve correctly
-        run: pnpm -w exec pnpm -r --if-present lint
+        # Run recursive workspace lint from root (bins should now be available thanks to --shamefully-hoist)
+        run: pnpm -w -r --if-present lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -141,7 +133,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev
+        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -205,7 +197,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev
+        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -274,7 +266,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev
+        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -380,7 +372,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev
+        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -504,7 +496,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev
+        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
