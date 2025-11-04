@@ -41,8 +41,8 @@ async function bootstrap() {
 
   setupSwagger(app, logger);
 
-  const port = Number(process.env.API_PORT ?? 3003);
-  await app.listen(port);
+  const port = 3003; // PATCH 20b
+  await app.listen(port); // PATCH 20b
   logger.log(`Nest API ready on http://localhost:${port}`);
 }
 

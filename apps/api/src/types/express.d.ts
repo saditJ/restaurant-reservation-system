@@ -1,4 +1,5 @@
-import 'express';
+// Declaration merging for Express Request
+import 'express-serve-static-core';
 
 declare module 'express-serve-static-core' {
   interface Request {
@@ -10,5 +11,6 @@ declare module 'express-serve-static-core' {
       userId?: string;
       roles?: string[];
     };
+    responseDurationMs?: number;
   }
 }

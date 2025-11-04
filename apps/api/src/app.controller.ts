@@ -11,7 +11,7 @@ export class AppController {
   @Public()
   @Get('health')
   health() {
-    return { status: 'ok' };
+    return { ok: true, service: 'api', port: 3003 }; // PATCH 20b
   }
 
   @Public()
@@ -50,6 +50,6 @@ export class AppController {
   @Roles('owner', 'manager')
   @Get('secure/admin-ping')
   adminPing() {
-    return { ok: true, role: 'owner|manager' };
+    return { ok: true }; // PATCH 20b
   }
 }
