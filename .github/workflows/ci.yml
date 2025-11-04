@@ -30,6 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Install pnpm first so the `pnpm` binary exists for subsequent steps
       - uses: pnpm/action-setup@v4
         with:
           version: ${{ env.PNPM_VERSION }}
@@ -40,8 +41,13 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: |
+          pnpm -v
+          node -v
+          pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
@@ -56,18 +62,16 @@ jobs:
           echo "=== root node_modules/.bin ==="
           ls -la node_modules/.bin || true
           echo "=== check workspace package bins ==="
-          for p in apps/api apps/market apps/provider apps/b2b-console apps/booking-widget apps/provider; do
+          for p in apps/api apps/market apps/provider apps/b2b-console apps/booking-widget; do
             echo ">>> $p"
             ls -la $p/node_modules/.bin || true
             ls -la $p/node_modules || true
           done
           echo "=== pnpm-lock.yaml head ==="
           head -n 80 pnpm-lock.yaml || true
-          echo "=== pnpm-workspace.yaml ==="
-          cat pnpm-workspace.yaml || true
 
       - name: Lint
-        run: pnpm lint
+        run: pnpm -r --if-present lint
 
       - name: Typecheck
         run: pnpm typecheck
@@ -130,8 +134,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
@@ -189,8 +195,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
@@ -253,8 +261,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
@@ -354,8 +364,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
@@ -473,8 +485,10 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm -w install --frozen-lockfile
+      - name: Install dependencies (include dev deps)
+        env:
+          NODE_ENV: development
+        run: pnpm -w install --frozen-lockfile --include=dev
 
       - name: Verify install (debug)
         run: |
