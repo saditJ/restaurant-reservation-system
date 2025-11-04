@@ -104,8 +104,8 @@ function normalizePath(path: string): string {
   return path;
 }
 
-function resolveBaseUrl(): string {
-  const hdrs = headers();
+async function resolveBaseUrl(): Promise<string> {
+  const hdrs = await headers();
   const forwardedProto =
     hdrs.get('x-forwarded-proto') ?? hdrs.get('next-url-proto');
   const forwardedHost =
@@ -122,7 +122,7 @@ async function fetchFromProxy<T extends JsonRecord>(
   path: string,
   init?: RequestInit,
 ): Promise<T> {
-  const baseUrl = resolveBaseUrl();
+  const baseUrl = await resolveBaseUrl();
   const normalized = normalizePath(path);
   const target = new URL(`/api${normalized}`, baseUrl);
   const headersInit: HeadersInit = new Headers(init?.headers);
