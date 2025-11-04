@@ -7,8 +7,8 @@ on:
   pull_request:
 
 env:
-  PNPM_VERSION: '9'
-  NODE_VERSION: '20'
+  PNPM_VERSION: '9.15.9'
+  NODE_VERSION: '22.18.0'
   DATABASE_URL: postgresql://reserve:reserve@localhost:5432/reserve?schema=public
   REDIS_URL: redis://localhost:6379/0
   PII_SECRET: ci-pii-secret
@@ -30,18 +30,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - name: Lint
         run: pnpm lint
@@ -97,18 +97,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -148,18 +148,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -204,18 +204,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -297,18 +297,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - uses: grafana/setup-k6-action@v1
         with:
@@ -408,18 +408,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: ${{ env.PNPM_VERSION }}
-          run_install: false
-
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
 
       - name: Start database dependencies
         run: docker compose up -d postgres redis
