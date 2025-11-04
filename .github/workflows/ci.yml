@@ -76,7 +76,7 @@ jobs:
 
       - name: Check PII secret length
         run: |
-          node -e "const s=process.env.PII_SECRET; const raw=Buffer.from(s); if(raw.length -ne 32){console.error('PII_SECRET must be 32 bytes, got', raw.length); exit 1} console.log('PII_SECRET length OK:', raw.length)"
+          node -e "const s=process.env.PII_SECRET; if(!s){console.error('PII_SECRET is not set'); process.exit(1)} const raw=Buffer.from(s); if(raw.length !== 32){console.error('PII_SECRET must be 32 bytes, got', raw.length); process.exit(1)} console.log('PII_SECRET length OK:', raw.length)"
 
 
       - name: Unit tests
