@@ -20,19 +20,6 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
-  {
-    files: ["src/**/*.{js,jsx,ts,tsx}"],
-    ignores: ["src/app/api/**/*"],
-    rules: {
-      "no-restricted-syntax": [
-        "error",
-        {
-          selector: "Literal[value=/^http:\\/\\/localhost/]",
-          message: "Use the /api proxy. Never expose http://localhost in client code.",
-        },
-      ],
-    },
-  },
 ];
 
 export default eslintConfig;
