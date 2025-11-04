@@ -35,6 +35,10 @@ export class ApiError extends Error {
   }
 }
 
+export function isApiError(value: unknown): value is ApiError {
+  return value instanceof ApiError;
+}
+
 function resolveBase(path: string) {
   if (BASE.startsWith('http://') || BASE.startsWith('https://')) {
     return new URL(path, BASE).toString();

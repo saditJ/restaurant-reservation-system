@@ -36,7 +36,7 @@ type PageProps = {
 };
 
 async function fetchOffer(code: string, token: string): Promise<OfferResult> {
-  const hdrs = headers();
+  const hdrs = await headers();
   const host = hdrs.get('x-forwarded-host') ?? hdrs.get('host') ?? 'localhost:3002';
   const proto = hdrs.get('x-forwarded-proto') ?? (process.env.NODE_ENV === 'production' ? 'https' : 'http');
   const origin = `${proto}://${host}`;
