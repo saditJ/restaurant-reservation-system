@@ -23,6 +23,7 @@ env:
   NEXT_PUBLIC_VENUE_TZ: UTC
   LOG_LEVEL: warn
   PORT: '3003'
+  PNPM_FROZEN_LOCKFILE: 'true'
 
 jobs:
   build:
@@ -134,7 +135,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
+        run: pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -198,7 +199,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
+        run: pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -267,7 +268,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
+        run: pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -373,7 +374,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
+        run: pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
@@ -497,7 +498,7 @@ jobs:
       - name: Install dependencies (include dev deps)
         env:
           NODE_ENV: development
-        run: pnpm -w install --frozen-lockfile --include=dev --shamefully-hoist
+        run: pnpm install --shamefully-hoist
 
       - name: Verify install (debug)
         run: |
