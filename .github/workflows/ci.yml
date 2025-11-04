@@ -11,7 +11,7 @@ env:
   NODE_VERSION: '22.18.0'
   DATABASE_URL: postgresql://reserve:reserve@localhost:5432/reserve?schema=public
   REDIS_URL: redis://localhost:6379/0
-  PII_SECRET: MzIteW91ci1yYW5kb20tc2VjcmV0LWZvci1jaS10ZXN0cw==
+  PII_SECRET: 0123456789abcdef0123456789abcdef
   PII_KEY_VERSION: v1
   API_KEY: dev-local-key
   API_KEYS: dev-local-key
@@ -74,11 +74,13 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Check PII secret length
+        run: |
+          node -e "const s=process.env.PII_SECRET; const raw=Buffer.from(s); if(raw.length -ne 32){console.error('PII_SECRET must be 32 bytes, got', raw.length); exit 1} console.log('PII_SECRET length OK:', raw.length)"
+
+
       - name: Unit tests
         run: pnpm test
-        env:
-          # Use a valid Base64 key (44 chars) that guarantees 32-byte decoding.
-          PII_SECRET: MzIteW91ci1yYW5kb20tc2VjcmV0LWZvci1jaS10ZXN0cw==
 
       - name: Prisma validate
         run: pnpm prisma:validate
@@ -627,3 +629,4 @@ jobs:
       - name: Teardown preview stack
         if: always()
         run: docker compose down --volumes --remove-orphans
+

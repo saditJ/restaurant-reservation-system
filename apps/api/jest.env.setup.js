@@ -1,6 +1,7 @@
+// Ensure test-safe PII key: exactly 32 ASCII bytes for AES-256-GCM
+process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 if (!process.env.PII_SECRET) {
-  // New Base64 key that resolves to 32 bytes of binary data
-  process.env.PII_SECRET = 'MzIteW91ci1yYW5kb20tc2VjcmV0LWZvci1jaS10ZXN0cw==';
+  process.env.PII_SECRET = '0123456789abcdef0123456789abcdef'; // 32 chars = 32 bytes
 }
 if (!process.env.PII_KEY_VERSION) {
   process.env.PII_KEY_VERSION = 'v1';
