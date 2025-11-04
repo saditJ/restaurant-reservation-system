@@ -76,6 +76,9 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+        env:
+          # Use a valid Base64 key (44 chars) that guarantees 32-byte decoding.
+          PII_SECRET: MzIteW91ci1yYW5kb20tc2VjcmV0LWZvci1jaS10ZXN0cw==
 
       - name: Prisma validate
         run: pnpm prisma:validate
