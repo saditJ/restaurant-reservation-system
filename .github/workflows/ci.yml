@@ -7,8 +7,8 @@ on:
   pull_request:
 
 env:
-  PNPM_VERSION: '9'
-  NODE_VERSION: '20'
+  PNPM_VERSION: '9.15.9'
+  NODE_VERSION: '22.18.0'
   DATABASE_URL: postgresql://reserve:reserve@localhost:5432/reserve?schema=public
   REDIS_URL: redis://localhost:6379/0
   PII_SECRET: ci-pii-secret
@@ -41,7 +41,30 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          echo "=== versions ==="
+          node -v
+          pnpm -v
+          echo "=== pnpm config ==="
+          pnpm config get node-linker || true
+          pnpm store path || true
+          echo "=== workspace packages (root list) ==="
+          pnpm -w list --depth 0 || true
+          echo "=== root node_modules/.bin ==="
+          ls -la node_modules/.bin || true
+          echo "=== check workspace package bins ==="
+          for p in apps/api apps/market apps/provider apps/b2b-console apps/booking-widget apps/provider; do
+            echo ">>> $p"
+            ls -la $p/node_modules/.bin || true
+            ls -la $p/node_modules || true
+          done
+          echo "=== pnpm-lock.yaml head ==="
+          head -n 80 pnpm-lock.yaml || true
+          echo "=== pnpm-workspace.yaml ==="
+          cat pnpm-workspace.yaml || true
 
       - name: Lint
         run: pnpm lint
@@ -108,7 +131,15 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          node -v
+          pnpm -v
+          pnpm -w list --depth 0 || true
+          ls -la node_modules/.bin || true
+          ls -la apps/provider/node_modules/.bin || true
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -159,7 +190,15 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          node -v
+          pnpm -v
+          pnpm -w list --depth 0 || true
+          ls -la node_modules/.bin || true
+          ls -la apps/provider/node_modules/.bin || true
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -215,7 +254,15 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          node -v
+          pnpm -v
+          pnpm -w list --depth 0 || true
+          ls -la node_modules/.bin || true
+          ls -la apps/provider/node_modules/.bin || true
 
       - name: Wait for Postgres and Redis
         run: pnpm exec tsx scripts/ci/wait-for-services.ts
@@ -308,7 +355,15 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          node -v
+          pnpm -v
+          pnpm -w list --depth 0 || true
+          ls -la node_modules/.bin || true
+          ls -la apps/provider/node_modules/.bin || true
 
       - uses: grafana/setup-k6-action@v1
         with:
@@ -419,7 +474,15 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm -w install --frozen-lockfile
+
+      - name: Verify install (debug)
+        run: |
+          node -v
+          pnpm -v
+          pnpm -w list --depth 0 || true
+          ls -la node_modules/.bin || true
+          ls -la apps/provider/node_modules/.bin || true
 
       - name: Start database dependencies
         run: docker compose up -d postgres redis
