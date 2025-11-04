@@ -11,7 +11,7 @@ env:
   NODE_VERSION: '22.18.0'
   DATABASE_URL: postgresql://reserve:reserve@localhost:5432/reserve?schema=public
   REDIS_URL: redis://localhost:6379/0
-  PII_SECRET: ci-pii-secret-for-testing-only-32x
+  PII_SECRET: MzIteW91ci1yYW5kb20tc2VjcmV0LWZvci1jaS10ZXN0cw==
   PII_KEY_VERSION: v1
   API_KEY: dev-local-key
   API_KEYS: dev-local-key
