@@ -23,7 +23,7 @@ const SANDBOX_TENANT_PLAN_ID = 'tenant-plan-sandbox';
 
 const DEMO_SEED_API_KEY_HASH =
   '01ea27eafbe8e5c7b672de58156a9277d5db106dafb491360d397f6b70b87bcc'; // sha256 of "demo-tenant-key"
-const DEFAULT_VENUE_ID = 'venue-main';
+const DEFAULT_VENUE_ID = 'venue-brooklyn';
 
 function encryptSeed(value: string) {
   return Buffer.from(value.trim(), 'utf8').toString('base64');
