@@ -97,6 +97,8 @@ async function fetchAvailability(
   const availability = await request<AvailabilityResponse>(
     'GET',
     `/v1/availability?${search.toString()}`,
+    undefined,
+    { 'x-api-key': API_KEY },
   );
   if (!availability.tables?.length) {
     throw new Error(
