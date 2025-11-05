@@ -1,10 +1,17 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { CacheService } from '../cache/cache.service';
+import { PrismaService } from '../prisma.service';
 
 type UsageSummary = {
   allows24h: number;
   drops24h: number;
+};
+
+type QuotaInfo = {
+  used: number;
+  limit: number;
+  resetDate: string;
 };
 
 const BUCKET_MS = 60 * 60 * 1000; // hourly buckets
@@ -12,11 +19,19 @@ const BUCKET_TTL_MS = 26 * 60 * 60 * 1000; // keep a bit beyond 24h
 
 @Injectable()
 export class RateLimitUsageService {
+  private readonly logger = new Logger(RateLimitUsageService.name);
   private readonly redis: Redis | null;
   private readonly memory = new Map<string, Map<string, MemoryBucket>>();
+  private readonly quotaEnforced: boolean;
+  private readonly monthlyDefaultCap: number;
 
-  constructor(cache: CacheService) {
+  constructor(
+    cache: CacheService,
+    private readonly prisma: PrismaService,
+  ) {
     this.redis = cache.getClient();
+    this.quotaEnforced = process.env.QUOTA_ENFORCE?.toLowerCase() !== 'false';
+    this.monthlyDefaultCap = Number(process.env.QUOTA_MONTHLY_DEFAULT ?? 100000);
   }
 
   async recordAllow(keyId: string): Promise<void> {
@@ -41,6 +56,97 @@ export class RateLimitUsageService {
       return this.fetchFromRedis(keyIds);
     }
     return this.fetchFromMemory(keyIds);
+  }
+
+  async trackUsage(apiKeyId: string, cost: number = 1): Promise<void> {
+    if (!this.quotaEnforced) return;
+
+    const month = this.getCurrentMonth();
+    const quotaKey = `quota:${apiKeyId}:${month}`;
+
+    if (this.redis) {
+      const newCount = await this.redis.incrby(quotaKey, cost);
+      await this.redis.pexpire(quotaKey, 35 * 24 * 60 * 60 * 1000); // 35 days TTL
+
+      const cap = await this.getApiKeyCap(apiKeyId);
+      if (newCount > cap) {
+        this.logger.warn(`API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`);
+        throw new Error('QUOTA_EXCEEDED');
+      }
+    } else {
+      // In-memory fallback
+      const memKey = `${apiKeyId}:${month}`;
+      const currentMemory = this.memory.get(memKey);
+      const count = currentMemory ? Array.from(currentMemory.values()).reduce((sum, b) => sum + b.allows, 0) : 0;
+      const newCount = count + cost;
+
+      const cap = await this.getApiKeyCap(apiKeyId);
+      if (newCount > cap) {
+        this.logger.warn(`API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`);
+        throw new Error('QUOTA_EXCEEDED');
+      }
+    }
+  }
+
+  async getUsage(apiKeyId: string): Promise<QuotaInfo> {
+    const month = this.getCurrentMonth();
+    const quotaKey = `quota:${apiKeyId}:${month}`;
+    const cap = await this.getApiKeyCap(apiKeyId);
+
+    let used = 0;
+    if (this.redis) {
+      const value = await this.redis.get(quotaKey);
+      used = value ? parseInt(value, 10) : 0;
+    } else {
+      const memKey = `${apiKeyId}:${month}`;
+      const currentMemory = this.memory.get(memKey);
+      used = currentMemory ? Array.from(currentMemory.values()).reduce((sum, b) => sum + b.allows, 0) : 0;
+    }
+
+    const resetDate = this.getResetDate();
+    return {
+      used,
+      limit: cap,
+      resetDate,
+    };
+  }
+
+  private async getApiKeyCap(apiKeyId: string): Promise<number> {
+    try {
+      const apiKey = await this.prisma.apiKey.findUnique({
+        where: { id: apiKeyId },
+        select: { tenantId: true },
+      });
+
+      if (!apiKey) return this.monthlyDefaultCap;
+
+      // Could extend schema to add monthlyCap to ApiKey or Tenant tables
+      // For now, use the default
+      return this.monthlyDefaultCap;
+    } catch (error) {
+      this.logger.warn(`Failed to fetch API key cap for ${apiKeyId}: ${(error as Error).message}`);
+      return this.monthlyDefaultCap;
+    }
+  }
+
+  private getCurrentMonth(): string {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = `${now.getUTCMonth() + 1}`.padStart(2, '0');
+    return `${year}${month}`;
+  }
+
+  private getResetDate(): string {
+    const now = new Date();
+    const rolloverDay = Number(process.env.BILLING_MONTH_ROLLOVER_DAY ?? 1);
+    let nextMonth = now.getUTCMonth() + 1;
+    let year = now.getUTCFullYear();
+    if (nextMonth > 11) {
+      nextMonth = 0;
+      year += 1;
+    }
+    const resetDate = new Date(Date.UTC(year, nextMonth, rolloverDay, 0, 0, 0));
+    return resetDate.toISOString();
   }
 
   private async incrementRedis(kind: 'allow' | 'drop', keyId: string) {

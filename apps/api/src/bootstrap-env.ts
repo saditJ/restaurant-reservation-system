@@ -99,6 +99,23 @@ export function bootstrapEnv() {
     process.env.PII_SECRET = 'dev-only-insecure-pii-secret-key';
   }
 
+  // Rate limit defaults
+  if (!process.env.RATE_LIMIT_DEFAULT_RPS) {
+    process.env.RATE_LIMIT_DEFAULT_RPS = '10';
+  }
+  if (!process.env.QUOTA_MONTHLY_DEFAULT) {
+    process.env.QUOTA_MONTHLY_DEFAULT = '100000';
+  }
+  if (!process.env.QUOTA_BURST_DEFAULT) {
+    process.env.QUOTA_BURST_DEFAULT = '100';
+  }
+  if (!process.env.QUOTA_ENFORCE) {
+    process.env.QUOTA_ENFORCE = 'true';
+  }
+  if (!process.env.BILLING_MONTH_ROLLOVER_DAY) {
+    process.env.BILLING_MONTH_ROLLOVER_DAY = '1';
+  }
+
   if ((process.env.PII_KEY_VERSION ?? '').trim().length === 0) {
     process.env.PII_KEY_VERSION = 'v1';
   }
