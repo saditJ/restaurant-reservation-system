@@ -1,9 +1,13 @@
-import { setTimeout as delay } from 'node:timers/promises';
-import { createConnection } from 'node:net';
-import type * as PrismaPiiModule from '../../apps/api/src/privacy/prisma-pii';
-import prismaPii from '../../apps/api/src/privacy/prisma-pii';
+import { setTimeout as delay } from 'timers/promises';
+import { createConnection, Socket } from 'net';
+import { PrismaClient } from '@prisma/client';
+import * as prismaPiiModule from '../../apps/api/src/privacy/prisma-pii';
 
-const { createPrismaWithPii } = prismaPii as typeof PrismaPiiModule;
+const createPrismaWithPii: (options?: any) => PrismaClient = 
+  (prismaPiiModule as any).createPrismaWithPii ??
+  (prismaPiiModule as any).default?.createPrismaWithPii ??
+  (prismaPiiModule as any).default ??
+  (prismaPiiModule as any);
 
 const DEFAULT_RETRIES = Number(process.env.CI_WAIT_RETRIES ?? 30);
 const DEFAULT_DELAY_MS = Number(process.env.CI_WAIT_DELAY_MS ?? 2_000);
@@ -72,13 +76,13 @@ async function checkRedis() {
       cleanup(new Error('Redis connection timed out'));
     });
 
-    socket.on('error', (error) => {
+    socket.on('error', (error: Error | any) => {
       cleanup(
         error instanceof Error ? error : new Error(String(error ?? 'error')),
       );
     });
 
-    socket.on('close', () => {
+    socket.on('data', (chunk: Buffer) => {
       cleanup(new Error('Redis connection closed before readiness detected'));
     });
 

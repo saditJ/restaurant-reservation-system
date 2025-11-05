@@ -1,5 +1,14 @@
-import { HoldStatus, ReservationStatus } from '@prisma/client';
-import { createPrismaWithPii } from '../apps/api/src/privacy/prisma-pii';
+import { HoldStatus, PrismaClient, ReservationStatus } from '@prisma/client';
+import * as prismaPiiModule from '../apps/api/src/privacy/prisma-pii';
+
+// The `prisma-pii` module may be consumed as ESM named exports or a
+// CommonJS/default export depending on runtime. Be defensive and accept
+// either shape so this script works in CI and locally.
+const createPrismaWithPii: (options?: any) => PrismaClient =
+  (prismaPiiModule as any).createPrismaWithPii ??
+  (prismaPiiModule as any).default?.createPrismaWithPii ??
+  (prismaPiiModule as any).default ??
+  (prismaPiiModule as any);
 
 const prisma = createPrismaWithPii();
 
@@ -24,7 +33,7 @@ async function main() {
     reservations: Object.fromEntries(
       Object.values(ReservationStatus).map((status) => [
         status,
-        reservations.find((r) => r.status === status)?._count ?? 0,
+        reservations.find((r: { status: ReservationStatus; _count?: number }) => r.status === status)?._count ?? 0,
       ]),
     ),
     holds: {
