@@ -1,6 +1,9 @@
 import { setTimeout as delay } from 'node:timers/promises';
-import { createPrismaWithPii } from '../../apps/api/src/privacy/prisma-pii';
-import Redis from 'ioredis';
+import { createConnection } from 'node:net';
+import type * as PrismaPiiModule from '../../apps/api/src/privacy/prisma-pii';
+import prismaPii from '../../apps/api/src/privacy/prisma-pii';
+
+const { createPrismaWithPii } = prismaPii as typeof PrismaPiiModule;
 
 const DEFAULT_RETRIES = Number(process.env.CI_WAIT_RETRIES ?? 30);
 const DEFAULT_DELAY_MS = Number(process.env.CI_WAIT_DELAY_MS ?? 2_000);
@@ -15,17 +18,101 @@ async function checkPostgres() {
 }
 
 async function checkRedis() {
-  const url = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379/0';
-  const redis = new Redis(url, { lazyConnect: true });
+  const urlString = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379/0';
+  let parsed: URL;
   try {
-    await redis.connect();
-    const pong = await redis.ping();
-    if (pong.toUpperCase() !== 'PONG') {
-      throw new Error(`Unexpected Redis ping response: ${pong}`);
-    }
-  } finally {
-    redis.disconnect();
+    parsed = new URL(urlString);
+  } catch (error) {
+    throw new Error(
+      `Invalid REDIS_URL "${urlString}": ${(error as Error).message}`,
+    );
   }
+
+  const host = parsed.hostname || '127.0.0.1';
+  const port = parsed.port ? Number(parsed.port) : 6379;
+  if (!Number.isFinite(port) || port <= 0) {
+    throw new Error(`Invalid Redis port in REDIS_URL: "${parsed.port ?? ''}"`);
+  }
+
+  const password =
+    parsed.password && parsed.password.length > 0
+      ? decodeURIComponent(parsed.password)
+      : null;
+  const db =
+    parsed.pathname && parsed.pathname.length > 1
+      ? Number.parseInt(parsed.pathname.slice(1), 10)
+      : null;
+
+  await new Promise<void>((resolve, reject) => {
+    const socket = createConnection({ host, port });
+    let settled = false;
+    let buffer = '';
+
+    const cleanup = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      socket.removeAllListeners();
+      socket.setTimeout(0);
+      if (!socket.destroyed) {
+        socket.end();
+        socket.destroy();
+      }
+      if (error) {
+        reject(error);
+      } else {
+        resolve();
+      }
+    };
+
+    const send = (command: string) => {
+      socket.write(`${command}\r\n`);
+    };
+
+    socket.setTimeout(5_000, () => {
+      cleanup(new Error('Redis connection timed out'));
+    });
+
+    socket.on('error', (error) => {
+      cleanup(
+        error instanceof Error ? error : new Error(String(error ?? 'error')),
+      );
+    });
+
+    socket.on('close', () => {
+      cleanup(new Error('Redis connection closed before readiness detected'));
+    });
+
+    socket.on('data', (chunk) => {
+      buffer += chunk.toString('utf8');
+
+      while (buffer.includes('\r\n')) {
+        const index = buffer.indexOf('\r\n');
+        const line = buffer.slice(0, index);
+        buffer = buffer.slice(index + 2);
+        if (!line) continue;
+
+        if (line.startsWith('-')) {
+          cleanup(new Error(`Redis error response: ${line}`));
+          return;
+        }
+
+        if (line.startsWith('+PONG')) {
+          cleanup();
+          return;
+        }
+      }
+    });
+
+    socket.on('connect', () => {
+      if (password) {
+        send(`AUTH ${password}`);
+      }
+      if (db !== null && Number.isFinite(db) && db >= 0) {
+        send(`SELECT ${db}`);
+      }
+      send('PING');
+    });
+  });
 }
 
 async function main() {
