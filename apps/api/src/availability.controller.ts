@@ -94,4 +94,42 @@ export class AvailabilityController {
 
     return availability;
   }
+
+  /**
+   * Get availability slots using the DST-safe engine.
+   * Returns time slots with capacity information across a date range.
+   */
+  @Get('slots')
+  async getAvailabilitySlots(
+    @Query('venueId') venueId?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('partySize') partySize?: string,
+    @Query('area') area?: string,
+  ) {
+    const normalizedVenueId = venueId?.trim() || DEFAULT_VENUE_ID;
+    const normalizedStartDate = (startDate ?? '').trim();
+    const normalizedEndDate = endDate?.trim();
+    const partySizeNumber = Number(partySize || '2');
+
+    if (!normalizedStartDate) {
+      throw new BadRequestException('startDate is required');
+    }
+    try {
+      assertValidDate(normalizedStartDate);
+      if (normalizedEndDate) assertValidDate(normalizedEndDate);
+    } catch (error) {
+      throw new BadRequestException(
+        'Invalid date format, expected YYYY-MM-DD',
+      );
+    }
+
+    return this.availability.getAvailabilitySlots({
+      venueId: normalizedVenueId,
+      startDate: normalizedStartDate,
+      endDate: normalizedEndDate,
+      partySize: partySizeNumber,
+      area: area?.trim(),
+    });
+  }
 }

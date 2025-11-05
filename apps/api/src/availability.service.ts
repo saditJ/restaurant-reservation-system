@@ -27,6 +27,11 @@ import {
   DEFAULT_VENUE_ID,
   ensureDefaultVenue,
 } from './utils/default-venue';
+import {
+  computeAvailability,
+  type EngineInput,
+  type AvailabilitySlot,
+} from './availability/availability.engine';
 
 type AvailabilityRequest = {
   venueId?: string;
@@ -111,6 +116,128 @@ export class AvailabilityService {
     private readonly prisma: PrismaService,
     private readonly policy: AvailabilityPolicyService,
   ) {}
+
+  /**
+   * Get availability using the DST-safe engine.
+   * Returns time slots with capacity information across a date range.
+   */
+  async getAvailabilitySlots(params: {
+    venueId?: string;
+    startDate: string;
+    endDate?: string;
+    partySize: number;
+    area?: string;
+  }): Promise<{
+    slots: AvailabilitySlot[];
+    summary: {
+      totalSlots: number;
+      availableSlots: number;
+      blockedSlots: number;
+    };
+  }> {
+    const { venueId, startDate, endDate, partySize, area } = params;
+
+    assertValidDate(startDate);
+    if (endDate) assertValidDate(endDate);
+
+    if (!Number.isFinite(partySize) || partySize <= 0) {
+      throw new BadRequestException('partySize must be > 0');
+    }
+
+    const venue = await this.getVenueWithConfig(venueId);
+
+    // Fetch reservations and holds for the date range
+    const [reservations, holds] = await Promise.all([
+      this.prisma.reservation.findMany({
+        where: {
+          venueId: venue.id,
+          slotLocalDate: {
+            gte: startDate,
+            lte: endDate || startDate,
+          },
+          status: { in: BLOCKING_RES_STATUS },
+        },
+        select: {
+          id: true,
+          tableId: true,
+          slotStartUtc: true,
+          durationMinutes: true,
+          partySize: true,
+          tables: { select: { tableId: true } },
+        },
+      }),
+      this.prisma.hold.findMany({
+        where: {
+          venueId: venue.id,
+          slotLocalDate: {
+            gte: startDate,
+            lte: endDate || startDate,
+          },
+          status: HoldStatus.HELD,
+          expiresAt: { gt: new Date() },
+        },
+        select: {
+          id: true,
+          tableId: true,
+          slotStartUtc: true,
+          expiresAt: true,
+          partySize: true,
+        },
+      }),
+    ]);
+
+    // Map reservations to include tableIds
+    const reservationsWithTables = reservations.map(({ tables, ...rest }) => ({
+      ...rest,
+      tableIds: [
+        ...new Set(
+          [
+            rest.tableId ?? undefined,
+            ...tables.map((assignment) => assignment.tableId),
+          ].filter((value): value is string => !!value),
+        ),
+      ],
+      durationMinutes: rest.durationMinutes || venue.defaultDurationMin || 120,
+    }));
+
+    // Fetch tables
+    const whereTable: Prisma.TableWhereInput = {
+      venueId: venue.id,
+      capacity: { gte: partySize },
+    };
+    if (area) whereTable.area = area;
+
+    const tables = await this.prisma.table.findMany({
+      where: whereTable,
+      orderBy: [{ capacity: 'asc' }, { label: 'asc' }],
+    });
+
+    // Build engine input
+    const engineInput: EngineInput = {
+      venue: {
+        id: venue.id,
+        timezone: venue.timezone,
+        turnTimeMin: venue.turnTimeMin,
+        defaultDurationMin: venue.defaultDurationMin,
+      },
+      dateRange: {
+        startDate,
+        endDate,
+      },
+      partySize,
+      slotIntervalMinutes: 15,
+      shifts: venue.shifts,
+      availabilityRules: venue.availabilityRules,
+      blackoutDates: venue.blackoutDates,
+      pacingRules: venue.pacingRules,
+      serviceBuffer: venue.serviceBuffer,
+      tables,
+      reservations: reservationsWithTables,
+      holds,
+    };
+
+    return computeAvailability(engineInput);
+  }
 
   async getAvailability(
     request: AvailabilityRequest,

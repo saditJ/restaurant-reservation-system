@@ -41,6 +41,8 @@
     "@js-temporal/polyfill": "^0.4.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "ioredis": "^5.4.1",
     "nodemailer": "^6.9.15",
     "nestjs-pino": "^4.4.1",
