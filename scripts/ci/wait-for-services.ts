@@ -82,11 +82,11 @@ async function checkRedis() {
       );
     });
 
-    socket.on('data', (chunk: Buffer) => {
+    socket.on('close', () => {
       cleanup(new Error('Redis connection closed before readiness detected'));
     });
 
-    socket.on('data', (chunk) => {
+    socket.on('data', (chunk: Buffer) => {
       buffer += chunk.toString('utf8');
 
       while (buffer.includes('\r\n')) {
