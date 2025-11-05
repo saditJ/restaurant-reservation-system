@@ -72,17 +72,32 @@ export class AvailabilityController {
       return cacheResult.value;
     }
 
-    const availability = await this.availability.getAvailability(
-      {
-        venueId: venueId || undefined,
-        date: date || '',
-        time: time || '',
-        partySize: Number(resolvedParty),
-        area: area || undefined,
-        tableId: tableId || undefined,
-      },
-      { policy: policyEvaluation },
-    );
+    let availability;
+    try {
+      availability = await this.availability.getAvailability(
+        {
+          venueId: venueId || undefined,
+          date: date || '',
+          time: time || '',
+          partySize: Number(resolvedParty),
+          area: area || undefined,
+          tableId: tableId || undefined,
+        },
+        { policy: policyEvaluation },
+      );
+    } catch (err) {
+      // Log details and stack to help CI debugging (captured in api logs).
+      // Keep the original error path by rethrowing after logging.
+      // eslint-disable-next-line no-console
+      console.error('Availability handler error', {
+        venueId: normalizedVenueId,
+        date: normalizedDate,
+        time,
+        partySize: partySizeNumber,
+        error: err instanceof Error ? err.stack || err.message : String(err),
+      });
+      throw err;
+    }
 
     const ttlSeconds = 45;
     if (cacheResult.status === 'miss') {
