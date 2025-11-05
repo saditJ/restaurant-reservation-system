@@ -40,6 +40,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { WebhooksAdminService } from './webhooks/webhooks.admin.service';
 import { WebhooksController } from './webhooks/webhooks.controller';
 import { WebhooksService } from './webhooks/webhooks.service';
+import { MarketModule } from './market/market.module';
 
 @Module({
   imports: [
@@ -115,6 +116,7 @@ import { WebhooksService } from './webhooks/webhooks.service';
     CommsModule,
     HoldsModule,
     WaitlistModule,
+    MarketModule,
   ],
   controllers: [
     AppController,

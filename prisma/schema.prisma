@@ -114,7 +114,26 @@ model Venue {
   id           String         @id @default(cuid())
   tenantId     String
   name         String
+  slug         String?        @unique
   timezone     String         @default("Europe/Tirane")
+  address      String?
+  city         String?
+  state        String?
+  country      String?
+  postalCode   String?
+  phone        String?
+  email        String?
+  website      String?
+  description  String?        @db.Text
+  heroImageUrl String?
+  gallery      String[]       @default([])
+  cuisines     String[]       @default([])
+  priceLevel   Int?           // 1-4 scale
+  tags         String[]       @default([])
+  amenities    String[]       @default([])
+  dressCode    String?
+  parkingInfo  String?
+  publicTransit String?
   hours        Json?
   turnTimeMin  Int            @default(10)
   holdTtlMin   Int            @default(15)
@@ -125,6 +144,7 @@ model Venue {
   pacingPerQuarterHour Int    @default(4)
   reminderHoursBefore Int?
   retainPersonalDataDays Int  @default(365)
+  isPublic     Boolean        @default(true)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -140,8 +160,15 @@ model Venue {
   pacingRules       PacingRule[]
   serviceBuffer     ServiceBuffer?
   commTemplates     CommTemplate[]
+  menus             Menu[]
+  reviews           Review[]
+  favorites         Favorite[]
+  analytics         VenueAnalytics[]
 
   @@index([tenantId], map: "Venue_tenantId_idx")
+  @@index([slug])
+  @@index([city])
+  @@index([isPublic])
 }
 
 model Table {
@@ -465,3 +492,106 @@ model AuditLog {
   @@index([createdAt], map: "idx_audit_created_at")
   @@index([action], map: "idx_audit_action")
 }
+
+model Menu {
+  id          String   @id @default(cuid())
+  venueId     String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  venue    Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sections MenuSection[]
+
+  @@index([venueId, isActive])
+}
+
+model MenuSection {
+  id          String   @id @default(cuid())
+  menuId      String
+  title       String
+  description String?
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  menu  Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  items MenuItem[]
+
+  @@index([menuId])
+}
+
+model MenuItem {
+  id          String   @id @default(cuid())
+  sectionId   String
+  name        String
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  currency    String   @default("USD")
+  imageUrl    String?
+  isAvailable Boolean  @default(true)
+  displayOrder Int     @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  section MenuSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+
+  @@index([sectionId])
+}
+
+model Review {
+  id           String   @id @default(cuid())
+  venueId      String
+  reservationId String? @unique
+  guestName    String
+  guestEmail   String?
+  rating       Int      // 1-5
+  title        String?
+  comment      String?  @db.Text
+  isVerified   Boolean  @default(false)
+  isPublished  Boolean  @default(false)
+  response     String?  @db.Text
+  respondedAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  venue       Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@index([venueId, isPublished, createdAt])
+  @@index([venueId, rating])
+  @@index([createdAt])
+}
+
+model Favorite {
+  userId    String
+  venueId   String
+  createdAt DateTime @default(now())
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@id([userId, venueId])
+  @@index([userId])
+  @@index([venueId])
+}
+
+model VenueAnalytics {
+  id          String   @id @default(cuid())
+  venueId     String
+  date        DateTime @db.Date
+  views       Int      @default(0)
+  searches    Int      @default(0)
+  bookings    Int      @default(0)
+  favorites   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  venue Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+
+  @@unique([venueId, date])
+  @@index([venueId, date])
+  @@index([date])
+}
+

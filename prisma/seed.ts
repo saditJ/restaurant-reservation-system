@@ -617,7 +617,25 @@ async function main() {
         id: venue.id,
         tenantId: demoTenantId,
         name: venue.name,
+        slug: venue.id, // Use ID as slug for now
         timezone: venue.timezone,
+        address: '123 Main St',
+        city: 'New York',
+        state: 'NY',
+        country: 'US',
+        postalCode: '10001',
+        phone: '+1-555-0100',
+        email: 'info@venue.example.com',
+        website: 'https://venue.example.com',
+        description: 'A charming restaurant in the heart of the city with excellent food and atmosphere.',
+        cuisines: ['Italian', 'Mediterranean'],
+        priceLevel: 2,
+        tags: ['romantic', 'outdoor-seating', 'wine-bar'],
+        amenities: ['wifi', 'parking', 'wheelchair-accessible', 'outdoor-seating'],
+        dressCode: 'casual',
+        parkingInfo: 'Street parking available',
+        publicTransit: 'Subway: L train to 1st Ave',
+        isPublic: true,
         hours: venue.hours,
         turnTimeMin: venue.turnTimeMin,
         holdTtlMin: venue.holdTtlMin,
@@ -686,6 +704,134 @@ async function main() {
         })),
       });
     }
+
+    // Seed menu with items
+    const menu = await prisma.menu.create({
+      data: {
+        venueId: venue.id,
+        name: 'Main Menu',
+        description: 'Our signature dishes',
+        isActive: true,
+        displayOrder: 0,
+      },
+    });
+
+    const appetizerSection = await prisma.menuSection.create({
+      data: {
+        menuId: menu.id,
+        title: 'Appetizers',
+        description: 'Start your meal right',
+        displayOrder: 0,
+      },
+    });
+
+    const entreeSection = await prisma.menuSection.create({
+      data: {
+        menuId: menu.id,
+        title: 'Entrées',
+        description: 'Main courses',
+        displayOrder: 1,
+      },
+    });
+
+    await prisma.menuItem.createMany({
+      data: [
+        {
+          sectionId: appetizerSection.id,
+          name: 'Bruschetta',
+          description: 'Toasted bread with fresh tomatoes, garlic, and basil',
+          price: 12.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 0,
+        },
+        {
+          sectionId: appetizerSection.id,
+          name: 'Calamari Fritti',
+          description: 'Crispy fried squid with marinara sauce',
+          price: 15.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 1,
+        },
+        {
+          sectionId: appetizerSection.id,
+          name: 'Caprese Salad',
+          description: 'Fresh mozzarella, tomatoes, and basil',
+          price: 14.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 2,
+        },
+        {
+          sectionId: entreeSection.id,
+          name: 'Spaghetti Carbonara',
+          description: 'Classic Roman pasta with eggs, cheese, and pancetta',
+          price: 22.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 0,
+        },
+        {
+          sectionId: entreeSection.id,
+          name: 'Osso Buco',
+          description: 'Braised veal shanks with vegetables',
+          price: 38.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 1,
+        },
+        {
+          sectionId: entreeSection.id,
+          name: 'Grilled Branzino',
+          description: 'Mediterranean sea bass with lemon and herbs',
+          price: 32.00,
+          currency: 'USD',
+          isAvailable: true,
+          displayOrder: 2,
+        },
+      ],
+    });
+
+    // Seed reviews
+    await prisma.review.createMany({
+      data: [
+        {
+          venueId: venue.id,
+          guestName: 'John D.',
+          guestEmail: 'john@example.com',
+          rating: 5,
+          title: 'Outstanding experience!',
+          comment: 'The food was incredible and the service was impeccable. Will definitely be back!',
+          isVerified: true,
+          isPublished: true,
+          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // 7 days ago
+        },
+        {
+          venueId: venue.id,
+          guestName: 'Sarah M.',
+          guestEmail: 'sarah@example.com',
+          rating: 4,
+          title: 'Great food, lovely atmosphere',
+          comment: 'Really enjoyed our evening here. The pasta was amazing. Only minor issue was the wait time.',
+          isVerified: true,
+          isPublished: true,
+          response: 'Thank you for your feedback! We are working on improving our service speed.',
+          respondedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000),
+          createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        },
+        {
+          venueId: venue.id,
+          guestName: 'Michael R.',
+          rating: 5,
+          title: 'Best Italian in the city',
+          comment: 'Authentic flavors, great wine selection. The branzino was cooked to perfection.',
+          isVerified: false,
+          isPublished: true,
+          createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        },
+      ],
+    });
   }
 
   await seedDefaultWaitlist(demoTenantId);
