@@ -65,7 +65,8 @@ function encryptFields(
   const config = PII_FIELD_CONFIG[modelName];
   if (!config) return;
 
-  const { encrypted, searchable, derived } = config;
+  const { encrypted, searchable } = config;
+  const derived = 'derived' in config ? config.derived : undefined;
 
   // Encrypt each configured field
   for (const fieldName of encrypted) {
@@ -86,7 +87,9 @@ function encryptFields(
       }
 
       // Derive other fields (e.g., last4)
-      const derivedField = (derived as Record<string, string>)?.[fieldName];
+      const derivedField = derived
+        ? (derived as Record<string, string>)[fieldName]
+        : undefined;
       if (derivedField && fieldName.toLowerCase().includes('phone')) {
         data[derivedField] = derivePhoneLast4(value);
       }
@@ -144,8 +147,9 @@ function processNestedWrites(
         encryptFields(modelName, nestedOp.create, keyVersion);
         processNestedWrites(nestedOp.create, keyVersion, processedSet);
       }
-      if (Array.isArray(nestedOp.createMany?.data)) {
-        for (const item of nestedOp.createMany.data) {
+      const createMany = nestedOp.createMany as any;
+      if (createMany && Array.isArray(createMany.data)) {
+        for (const item of createMany.data) {
           if (isPlainObject(item)) {
             encryptFields(modelName, item, keyVersion);
             processNestedWrites(item, keyVersion, processedSet);
@@ -155,14 +159,16 @@ function processNestedWrites(
 
       // Handle update/updateMany
       if (isPlainObject(nestedOp.update)) {
-        const updateData = nestedOp.update.data ?? nestedOp.update;
+        const updateObj = nestedOp.update as any;
+        const updateData = updateObj.data ?? updateObj;
         if (isPlainObject(updateData)) {
           encryptFields(modelName, updateData, keyVersion);
           processNestedWrites(updateData, keyVersion, processedSet);
         }
       }
       if (isPlainObject(nestedOp.updateMany)) {
-        const updateData = nestedOp.updateMany.data;
+        const updateManyObj = nestedOp.updateMany as any;
+        const updateData = updateManyObj.data;
         if (isPlainObject(updateData)) {
           encryptFields(modelName, updateData, keyVersion);
         }
@@ -170,12 +176,13 @@ function processNestedWrites(
 
       // Handle upsert
       if (isPlainObject(nestedOp.upsert)) {
-        if (isPlainObject(nestedOp.upsert.create)) {
-          encryptFields(modelName, nestedOp.upsert.create, keyVersion);
-          processNestedWrites(nestedOp.upsert.create, keyVersion, processedSet);
+        const upsertObj = nestedOp.upsert as any;
+        if (isPlainObject(upsertObj.create)) {
+          encryptFields(modelName, upsertObj.create, keyVersion);
+          processNestedWrites(upsertObj.create, keyVersion, processedSet);
         }
-        if (isPlainObject(nestedOp.upsert.update)) {
-          const updateData = nestedOp.upsert.update.data ?? nestedOp.upsert.update;
+        if (isPlainObject(upsertObj.update)) {
+          const updateData = upsertObj.update.data ?? upsertObj.update;
           if (isPlainObject(updateData)) {
             encryptFields(modelName, updateData, keyVersion);
             processNestedWrites(updateData, keyVersion, processedSet);
@@ -258,13 +265,13 @@ export const piiExtension = Prisma.defineExtension({
         // Encrypt fields on write operations
         if (isWrite && args && isPlainObject(args)) {
           // Handle direct data field
-          if (isPlainObject(args.data)) {
-            encryptFields(modelName as ModelName, args.data, keyVersion);
+          if (isPlainObject((args as any).data)) {
+            encryptFields(modelName as ModelName, (args as any).data, keyVersion);
           }
 
           // Handle array of data (createMany)
-          if (Array.isArray(args.data)) {
-            for (const item of args.data) {
+          if (Array.isArray((args as any).data)) {
+            for (const item of (args as any).data) {
               if (isPlainObject(item)) {
                 encryptFields(modelName as ModelName, item, keyVersion);
               }
