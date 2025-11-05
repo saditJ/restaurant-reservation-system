@@ -340,6 +340,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       CI_API_BASE: http://127.0.0.1:3003
+      SMOKE_VENUE_ID: venue-main
     services:
       postgres:
         image: postgres:16-alpine
@@ -437,7 +438,7 @@ jobs:
         env:
           BASE_URL: http://127.0.0.1:3003/v1
           API_KEY: ${{ env.API_KEY }}
-          VENUE_ID: venue-brooklyn
+          VENUE_ID: venue-main
           DATE: 2025-12-24
           TIME: 19:00
           PARTY: '2'
