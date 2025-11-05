@@ -1,7 +1,7 @@
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
-import { applyPiiProtections } from './privacy/prisma-pii';
 import { tenantScopeExtension } from './prisma/tenant-middleware';
+import { piiExtension } from './prisma/pii.extension';
 
 const shouldSkipPrismaConnect = () =>
   ['1', 'true'].includes(String(process.env.PRISMA_SKIP_CONNECT ?? '').toLowerCase());
@@ -10,9 +10,11 @@ const shouldSkipPrismaConnect = () =>
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor() {
     super();
-    applyPiiProtections(this); // PATCH 20b.2
-    const extended = (this as any).$extends(tenantScopeExtension); // PATCH 20b.2
-    Object.assign(this as any, extended); // PATCH 20b.2
+    // Apply extensions: piiExtension first, then tenant scoping
+    // Order matters: PII encryption should happen before tenant filtering
+    const withPii = (this as any).$extends(piiExtension);
+    const withTenant = withPii.$extends(tenantScopeExtension);
+    Object.assign(this as any, withTenant);
   }
 
   async onModuleInit() {

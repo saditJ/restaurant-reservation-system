@@ -26,7 +26,8 @@
     "ci:wait": "pnpm exec tsx scripts/ci/wait-for-services.ts",
     "ci:smoke": "pnpm exec tsx scripts/ci/smoke.ts",
     "ci:k6-summary": "pnpm exec tsx scripts/ci/k6-summary.ts",
-    "cleanup:idempotency": "tsx scripts/cleanup-idempotency.ts"
+    "cleanup:idempotency": "tsx scripts/cleanup-idempotency.ts",
+    "rotate:pii": "tsx scripts/rotate-pii-keys.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

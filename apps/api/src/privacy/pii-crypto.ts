@@ -129,6 +129,11 @@ export function derivePhoneSearch(value: string): {
   return { hash, last4 };
 }
 
+export function derivePhoneLast4(value: string): string | null {
+  const digits = value.replace(/\D+/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : null;
+}
+
 function resolveSecret(raw: string | undefined, label: string): Buffer {
   if (!raw) {
     throw new Error(`${label} is required to boot the API`);
