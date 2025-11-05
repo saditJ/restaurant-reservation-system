@@ -13,8 +13,8 @@ env:
   REDIS_URL: redis://localhost:6379/0
   PII_SECRET: 0123456789abcdef0123456789abcdef
   PII_KEY_VERSION: v1
-  API_KEY: dev-local-key
-  API_KEYS: dev-local-key
+  API_KEY: demo-tenant-key
+  API_KEYS: demo-tenant-key
   SWAGGER_API_KEY: ci-swagger-key
   API_BASE_INTERNAL: http://localhost:3003
   NEXT_PUBLIC_API_BASE: /api
