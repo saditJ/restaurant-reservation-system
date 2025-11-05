@@ -95,46 +95,6 @@
         ]
       }
     },
-    "/v1/holds": {
-      "get": {
-        "operationId": "HoldsController_list",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Holds"
-        ]
-      },
-      "post": {
-        "operationId": "HoldsController_create",
-        "parameters": [],
-        "responses": {
-          "201": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Holds"
-        ]
-      }
-    },
-    "/v1/holds/{id}": {
-      "delete": {
-        "operationId": "HoldsController_cancel",
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": ""
-          }
-        },
-        "tags": [
-          "Holds"
-        ]
-      }
-    },
     "/v1/availability": {
       "get": {
         "operationId": "AvailabilityController_getAvailability",
@@ -843,6 +803,319 @@
         ]
       }
     },
+    "/v1/admin/api-keys": {
+      "get": {
+        "operationId": "ApiKeysController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ]
+      },
+      "post": {
+        "operationId": "ApiKeysController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ]
+      }
+    },
+    "/v1/admin/api-keys/{id}/rotate": {
+      "post": {
+        "operationId": "ApiKeysController_rotate",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ]
+      }
+    },
+    "/v1/admin/api-keys/{id}/disable": {
+      "post": {
+        "operationId": "ApiKeysController_disable",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ]
+      }
+    },
+    "/v1/admin/api-keys/{id}": {
+      "patch": {
+        "operationId": "ApiKeysController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "ApiKeys"
+        ]
+      }
+    },
+    "/v1/admin/shifts": {
+      "get": {
+        "operationId": "AdminShiftsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Returns shifts",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List shifts for a venue",
+        "tags": [
+          "Admin Shifts"
+        ]
+      },
+      "post": {
+        "operationId": "AdminShiftsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a shift",
+        "tags": [
+          "Admin Shifts"
+        ]
+      }
+    },
+    "/v1/admin/shifts/{id}": {
+      "patch": {
+        "operationId": "AdminShiftsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update a shift",
+        "tags": [
+          "Admin Shifts"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminShiftsController_remove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a shift",
+        "tags": [
+          "Admin Shifts"
+        ]
+      }
+    },
+    "/v1/admin/pacing-rules": {
+      "get": {
+        "operationId": "AdminPacingRulesController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List pacing rules for a venue",
+        "tags": [
+          "Admin Pacing Rules"
+        ]
+      },
+      "post": {
+        "operationId": "AdminPacingRulesController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a pacing rule",
+        "tags": [
+          "Admin Pacing Rules"
+        ]
+      }
+    },
+    "/v1/admin/pacing-rules/{id}": {
+      "patch": {
+        "operationId": "AdminPacingRulesController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update a pacing rule",
+        "tags": [
+          "Admin Pacing Rules"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminPacingRulesController_remove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a pacing rule",
+        "tags": [
+          "Admin Pacing Rules"
+        ]
+      }
+    },
+    "/v1/admin/blackouts": {
+      "get": {
+        "operationId": "AdminBlackoutsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "List blackout dates for a venue",
+        "tags": [
+          "Admin Blackouts"
+        ]
+      },
+      "post": {
+        "operationId": "AdminBlackoutsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "summary": "Create a blackout date",
+        "tags": [
+          "Admin Blackouts"
+        ]
+      }
+    },
+    "/v1/admin/blackouts/{id}": {
+      "patch": {
+        "operationId": "AdminBlackoutsController_update",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Update a blackout date",
+        "tags": [
+          "Admin Blackouts"
+        ]
+      },
+      "delete": {
+        "operationId": "AdminBlackoutsController_remove",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Delete a blackout date",
+        "tags": [
+          "Admin Blackouts"
+        ]
+      }
+    },
+    "/v1/admin/service-buffers": {
+      "get": {
+        "operationId": "AdminServiceBuffersController_get",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Get service buffer for a venue",
+        "tags": [
+          "Admin Service Buffers"
+        ]
+      },
+      "put": {
+        "operationId": "AdminServiceBuffersController_upsert",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Upsert service buffer for a venue",
+        "tags": [
+          "Admin Service Buffers"
+        ]
+      }
+    },
+    "/v1/privacy/guest/export": {
+      "get": {
+        "operationId": "PrivacyController_export",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Privacy"
+        ]
+      }
+    },
+    "/v1/privacy/guest/erase": {
+      "post": {
+        "operationId": "PrivacyController_erase",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Privacy"
+        ]
+      }
+    },
+    "/v1/audit/logs": {
+      "get": {
+        "operationId": "AuditController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Audit"
+        ]
+      }
+    },
     "/v1/venues/{venueId}/settings": {
       "get": {
         "operationId": "VenuesController_getSettings",
@@ -892,6 +1165,156 @@
         },
         "tags": [
           "Venues"
+        ]
+      }
+    },
+    "/v1/holds": {
+      "get": {
+        "operationId": "HoldsController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      },
+      "post": {
+        "operationId": "HoldsController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      }
+    },
+    "/v1/holds/{id}": {
+      "delete": {
+        "operationId": "HoldsController_cancel",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Holds"
+        ]
+      }
+    },
+    "/v1/waitlist": {
+      "post": {
+        "operationId": "WaitlistController_create",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      },
+      "get": {
+        "operationId": "WaitlistController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/{id}/offer": {
+      "post": {
+        "operationId": "WaitlistController_offer",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/{id}/expire": {
+      "post": {
+        "operationId": "WaitlistController_expire",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/{id}/convert": {
+      "post": {
+        "operationId": "WaitlistController_convert",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/offers/recent": {
+      "get": {
+        "operationId": "WaitlistController_recentOffers",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/offer/{code}": {
+      "get": {
+        "operationId": "WaitlistController_resolve",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
+        ]
+      }
+    },
+    "/v1/waitlist/offer/{code}/convert": {
+      "post": {
+        "operationId": "WaitlistController_consumeOffer",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Waitlist"
         ]
       }
     }

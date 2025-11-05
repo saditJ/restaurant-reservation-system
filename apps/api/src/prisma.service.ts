@@ -3,6 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import { applyPiiProtections } from './privacy/prisma-pii';
 import { tenantScopeExtension } from './prisma/tenant-middleware';
 
+const shouldSkipPrismaConnect = () =>
+  ['1', 'true'].includes(String(process.env.PRISMA_SKIP_CONNECT ?? '').toLowerCase());
+
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
   constructor() {
@@ -13,6 +16,9 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
   }
 
   async onModuleInit() {
+    if (shouldSkipPrismaConnect()) {
+      return;
+    }
     await this.$connect(); // PATCH 20b.2
   }
 
