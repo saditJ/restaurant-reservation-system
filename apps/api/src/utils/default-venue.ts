@@ -168,6 +168,7 @@ const DEFAULT_SHIFTS: Array<Prisma.ShiftCreateManyInput> = [
   { dow: 3, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:00'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
   { dow: 4, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
   { dow: 5, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
+  { dow: 6, startsAtLocal: toUtcTime('10:00'), endsAtLocal: toUtcTime('23:30'), capacitySeats: 40, capacityCovers: 160, isActive: true, venueId: DEFAULT_VENUE_ID },
 ];
 
 const DEFAULT_RULES: Array<Prisma.AvailabilityRuleCreateManyInput> = [

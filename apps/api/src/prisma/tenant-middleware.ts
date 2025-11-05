@@ -2,14 +2,12 @@ import { Prisma } from '@prisma/client';
 import { RequestContext } from '../common/request-context';
 
 const TENANTED = new Set<string>([
-  'Table',
-  'Reservation',
-  'Shift',
-  'ServiceArea',
-  'MenuItem',
-  'Blackout',
-  'FloorPlan',
-  // extend as needed
+  'Venue',
+  'TenantPlan',
+  'Membership',
+  'ApiKey',
+  // Note: Most models (Table, Reservation, Shift, BlackoutDate, Hold, etc.)
+  // are scoped by venueId, not tenantId, so they are NOT included here
 ]);
 
 function withTenantWhere(
