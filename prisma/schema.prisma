@@ -432,6 +432,7 @@ model IdempotencyKey {
   expiresAt DateTime
 
   @@index([expiresAt], map: "idx_idempotency_expires_at")
+  @@index([id, method, path], map: "idx_idempotency_lookup")
 }
 
 model ApiKey {

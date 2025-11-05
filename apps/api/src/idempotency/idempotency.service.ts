@@ -1,7 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { IdempotencyKey, Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
+import type Redis from 'ioredis';
 import { PrismaService } from '../prisma.service';
+import { CacheService } from '../cache/cache.service';
 
 type StoredResponse = {
   body: unknown;
@@ -23,8 +25,15 @@ type IdempotencyRecord = {
 export class IdempotencyService {
   private readonly logger = new Logger(IdempotencyService.name);
   private readonly ttlMs = 24 * 60 * 60 * 1000;
+  private readonly redis: Redis | null;
+  private readonly lockTtlMs = 30_000; // 30 seconds
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    cache: CacheService,
+  ) {
+    this.redis = cache.getClient();
+  }
 
   normalizeKey(raw?: string | null): string | null {
     if (!raw) return null;
@@ -112,6 +121,61 @@ export class IdempotencyService {
     } finally {
       void this.maybeCleanupExpired();
     }
+  }
+
+  async acquireLock(key: string): Promise<boolean> {
+    if (this.redis) {
+      try {
+        const lockKey = `lock:idem:${key}`;
+        const result = await this.redis.set(
+          lockKey,
+          '1',
+          'PX',
+          this.lockTtlMs,
+          'NX',
+        );
+        return result === 'OK';
+      } catch (error) {
+        this.logger.warn(`Failed to acquire Redis lock for ${key}: ${(error as Error).message}`);
+        return false;
+      }
+    }
+    // Fallback: use Postgres advisory lock (session-level, auto-released on disconnect)
+    try {
+      const lockId = this.hashToLockId(key);
+      const result = await this.prisma.$queryRaw<Array<{ pg_try_advisory_lock: boolean }>>`
+        SELECT pg_try_advisory_lock(${lockId}) as pg_try_advisory_lock
+      `;
+      return result[0]?.pg_try_advisory_lock ?? false;
+    } catch (error) {
+      this.logger.warn(`Failed to acquire Postgres lock for ${key}: ${(error as Error).message}`);
+      return false;
+    }
+  }
+
+  async releaseLock(key: string): Promise<void> {
+    if (this.redis) {
+      try {
+        const lockKey = `lock:idem:${key}`;
+        await this.redis.del(lockKey);
+      } catch (error) {
+        this.logger.warn(`Failed to release Redis lock for ${key}: ${(error as Error).message}`);
+      }
+      return;
+    }
+    // Postgres advisory locks are session-level and auto-released, but we can explicitly unlock
+    try {
+      const lockId = this.hashToLockId(key);
+      await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${lockId})`;
+    } catch (error) {
+      this.logger.warn(`Failed to release Postgres lock for ${key}: ${(error as Error).message}`);
+    }
+  }
+
+  private hashToLockId(key: string): number {
+    const hash = createHash('sha256').update(key).digest();
+    // Extract first 4 bytes and convert to int32 (Postgres advisory lock uses bigint but we use int for simplicity)
+    return hash.readInt32BE(0);
   }
 
   private async maybeCleanupExpired() {

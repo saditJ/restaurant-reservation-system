@@ -81,27 +81,53 @@ export class IdempotencyInterceptor implements NestInterceptor {
           return of(existing.response.body);
         }
 
-        return next
-          .handle()
-          .pipe(
-            mergeMap((body) =>
-              from(
-                this.persistSuccess(response, meta, body),
-              ).pipe(map(() => body)),
-            ),
-            catchError((error) =>
-              from(this.persistFailure(response, meta, error)).pipe(
-                mergeMap(() => throwError(() => error)),
+        // Acquire lock before processing
+        return from(this.idempotency.acquireLock(meta.key)).pipe(
+          mergeMap((acquired) => {
+            if (!acquired) {
+              // Lock not acquired, return 409 conflict (request in progress)
+              this.metrics.incrementIdempotencyConflict();
+              return throwError(() =>
+                new ConflictException({
+                  error: {
+                    code: 'CONFLICT',
+                    message: 'Request already in progress',
+                  },
+                }),
+              );
+            }
+
+            // Lock acquired, process request
+            return next.handle().pipe(
+              mergeMap((body) =>
+                from(this.persistSuccess(response, meta, body)).pipe(
+                  mergeMap(() =>
+                    from(this.idempotency.releaseLock(meta.key)).pipe(
+                      map(() => body),
+                    ),
+                  ),
+                ),
               ),
-            ),
-          );
+              catchError((error) =>
+                from(this.persistFailure(response, meta, error)).pipe(
+                  mergeMap(() =>
+                    from(this.idempotency.releaseLock(meta.key)).pipe(
+                      mergeMap(() => throwError(() => error)),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
       }),
     );
   }
 
   private shouldHandle(request: Request): boolean {
     if (!request) return false;
-    if (request.method?.toUpperCase() !== 'POST') return false;
+    const method = request.method?.toUpperCase();
+    if (!method || !['POST', 'PATCH', 'DELETE'].includes(method)) return false;
     const header =
       request.header('idempotency-key') ??
       request.header('Idempotency-Key') ??

@@ -1,5 +1,5 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { LoggerModule } from 'nestjs-pino';
 import { AvailabilityController } from './availability.controller';
@@ -19,6 +19,7 @@ import { DatabaseModule } from './database/database.module';
 import { HoldsModule } from './holds.module';
 import { HoldsCleanupService } from './holds.cleanup.service';
 import { IdempotencyModule } from './idempotency/idempotency.module';
+import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 import { MetricsModule } from './metrics/metrics.module';
 import { NotificationsController } from './notifications/notifications.controller';
 import { NotificationsAdminService } from './notifications/notifications.admin.service';
@@ -143,6 +144,7 @@ import { WebhooksService } from './webhooks/webhooks.service';
     { provide: APP_GUARD, useClass: ApiKeyGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
   ],
 })
 export class AppModule implements NestModule {
