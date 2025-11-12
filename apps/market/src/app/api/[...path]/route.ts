@@ -60,6 +60,17 @@ async function proxy(req: NextRequest) {
     }
   }
 
+  const forwardedHost =
+    req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (forwardedHost) {
+    headers.set('x-forwarded-host', forwardedHost.split(',')[0]);
+  }
+  const forwardedProto =
+    req.headers.get('x-forwarded-proto') ?? req.headers.get('next-url-proto');
+  if (forwardedProto) {
+    headers.set('x-forwarded-proto', forwardedProto);
+  }
+
   headers.set('x-api-key', API_KEY);
   headers.set('x-client-app', 'market');
 

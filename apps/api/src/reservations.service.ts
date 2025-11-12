@@ -23,10 +23,7 @@ import {
   hasSlotConflicts,
   SlotConflicts,
 } from './utils/booking-conflicts';
-import {
-  DEFAULT_VENUE_ID,
-  ensureDefaultVenue,
-} from './utils/default-venue';
+import { DEFAULT_VENUE_ID, ensureDefaultVenue } from './utils/default-venue';
 import { syncReservationTableAssignments } from './utils/sync-table-assignments';
 import { NotificationsService } from './notifications/notifications.service';
 import { ReservationNotificationEvent } from './notifications/notification.types';
@@ -35,6 +32,8 @@ import { ReservationWebhookEvent } from './webhooks/webhook.types';
 import { CacheService } from './cache/cache.service';
 import { deriveEmailSearch, derivePhoneSearch } from './privacy/pii-crypto';
 import { CommService, ReservationCommDetails } from './comms/comm.service';
+import { LinkTokenService } from './security/link-token.service';
+import { buildGuestReservationLinks } from './utils/guest-links';
 
 const STATUS_CAST = new Set<ReservationStatus>([
   ReservationStatus.PENDING,
@@ -172,6 +171,7 @@ export class ReservationsService {
     private readonly webhooks: WebhooksService,
     private readonly comms: CommService,
     private readonly cache: CacheService,
+    private readonly linkTokens: LinkTokenService,
   ) {}
 
   async list(params: ListParams = {}): Promise<ListResult> {
@@ -269,10 +269,7 @@ export class ReservationsService {
     return { items, total };
   }
 
-  private async createFromHold(
-    holdId: string,
-    dto: CreateReservationDto,
-  ) {
+  private async createFromHold(holdId: string, dto: CreateReservationDto) {
     if (!holdId) {
       throw new BadRequestException('holdId is required for this path');
     }
@@ -330,7 +327,8 @@ export class ReservationsService {
           }
           if (dto.time) {
             const normalized = normalizeTimeTo24h(dto.time);
-            if (!normalized) throw new BadRequestException('Invalid time format');
+            if (!normalized)
+              throw new BadRequestException('Invalid time format');
             if (normalized !== hold.slotLocalTime) {
               throw new BadRequestException('Hold time mismatch');
             }
@@ -388,7 +386,9 @@ export class ReservationsService {
               table: { connect: { id: tableId } },
             },
           });
-          await syncReservationTableAssignments(tx, newReservation.id, [tableId]);
+          await syncReservationTableAssignments(tx, newReservation.id, [
+            tableId,
+          ]);
 
           await tx.hold.update({
             where: { id: hold.id },
@@ -511,6 +511,20 @@ export class ReservationsService {
     return this.toDto(reservation, this.emptyConflict());
   }
 
+  async findByCode(code: string): Promise<ReservationDto> {
+    const reservation = await this.prisma.reservation.findFirst({
+      where: { code: code.toUpperCase() },
+      include: {
+        table: true,
+        tables: { include: { table: true } },
+        hold: { include: { table: true } },
+        venue: true,
+      },
+    });
+    if (!reservation) throw new NotFoundException('Reservation not found');
+    return this.toDto(reservation, this.emptyConflict());
+  }
+
   // ---------- CREATE ----------
   async create(dto: CreateReservationDto): Promise<ReservationDto> {
     const holdId = dto.holdId?.trim() || null;
@@ -581,7 +595,11 @@ export class ReservationsService {
           const newReservation = await tx.reservation.create({
             data,
           });
-          await syncReservationTableAssignments(tx, newReservation.id, tableId ? [tableId] : []);
+          await syncReservationTableAssignments(
+            tx,
+            newReservation.id,
+            tableId ? [tableId] : [],
+          );
 
           const full = await tx.reservation.findUnique({
             where: { id: newReservation.id },
@@ -709,7 +727,7 @@ export class ReservationsService {
         ? dto.tableId
           ? dto.tableId
           : null
-        : existing.tableId ?? null;
+        : (existing.tableId ?? null);
     if (dto.tableId !== undefined) {
       if (nextTableId) {
         payload.table = { connect: { id: nextTableId } };
@@ -721,7 +739,8 @@ export class ReservationsService {
     const nextDurationMinutes =
       dto.durationMinutes !== undefined
         ? this.resolveDurationMinutes(existing.venue, dto.durationMinutes)
-        : Number(existing.durationMinutes) || this.resolveDurationMinutes(existing.venue);
+        : Number(existing.durationMinutes) ||
+          this.resolveDurationMinutes(existing.venue);
     if (dto.durationMinutes !== undefined) {
       payload.durationMinutes = nextDurationMinutes;
     }
@@ -736,8 +755,7 @@ export class ReservationsService {
       if (!normalized) throw new BadRequestException('Invalid time format');
       slotTime = normalized;
     }
-    const slotChanged =
-      dto.date !== undefined || dto.time !== undefined;
+    const slotChanged = dto.date !== undefined || dto.time !== undefined;
     if (slotChanged) {
       const slot = this.buildSlot(existing.venue, slotDate, slotTime);
       payload.slotLocalDate = slot.date;
@@ -746,7 +764,9 @@ export class ReservationsService {
     }
 
     const needsConflictCheck =
-      slotChanged || dto.tableId !== undefined || dto.durationMinutes !== undefined;
+      slotChanged ||
+      dto.tableId !== undefined ||
+      dto.durationMinutes !== undefined;
 
     const result = await this.prisma.$transaction(
       async (tx) => {
@@ -841,10 +861,7 @@ export class ReservationsService {
     const nextStatus = this.normalizeStatus(status, existing.status);
     this.ensureTransition(existing.status, nextStatus);
 
-    if (
-      actor === 'guest' &&
-      nextStatus === ReservationStatus.CANCELLED
-    ) {
+    if (actor === 'guest' && nextStatus === ReservationStatus.CANCELLED) {
       this.ensureGuestCancelWindow(existing.venue, existing.slotStartUtc);
     }
 
@@ -858,8 +875,14 @@ export class ReservationsService {
         venue: true,
       },
     });
-    const notificationEvents = this.resolveStatusEvents(existing.status, nextStatus);
-    const webhookEvents = this.resolveWebhookStatusEvents(existing.status, nextStatus);
+    const notificationEvents = this.resolveStatusEvents(
+      existing.status,
+      nextStatus,
+    );
+    const webhookEvents = this.resolveWebhookStatusEvents(
+      existing.status,
+      nextStatus,
+    );
 
     await Promise.all([
       this.enqueueReservationNotifications(updated, notificationEvents),
@@ -896,7 +919,10 @@ export class ReservationsService {
   private async enqueueReservationNotifications(
     snapshot: ReservationRecord,
     events: ReservationNotificationEvent[],
-    options: { scheduledAt?: Date | string | null; metadata?: Record<string, unknown> } = {},
+    options: {
+      scheduledAt?: Date | string | null;
+      metadata?: Record<string, unknown>;
+    } = {},
   ) {
     if (events.length === 0) return;
     await this.notifications.enqueueReservationEvents(snapshot.id, events, {
@@ -915,7 +941,10 @@ export class ReservationsService {
   }
 
   private async invalidateAvailabilityForReservations(
-    ...reservations: Array<{ venueId: string; slotLocalDate: string | null | undefined }>
+    ...reservations: Array<{
+      venueId: string;
+      slotLocalDate: string | null | undefined;
+    }>
   ) {
     const tasks: Promise<void>[] = [];
     const seen = new Set<string>();
@@ -945,8 +974,13 @@ export class ReservationsService {
     reservation: ReservationRecord,
   ): ReservationCommDetails {
     const baseUrl = this.resolveCommsBaseUrl();
-    const manageUrl = `${baseUrl}/reservations/${reservation.code}`;
     const offerUrl = `${baseUrl}/offers/${reservation.venueId}`;
+    const guestLinks = buildGuestReservationLinks(
+      this.linkTokens,
+      reservation.id,
+    );
+    const manageUrl =
+      guestLinks.modifyUrl ?? `${baseUrl}/reservations/${reservation.code}`;
     return {
       id: reservation.id,
       code: reservation.code,
@@ -961,6 +995,8 @@ export class ReservationsService {
       },
       manageUrl,
       offerUrl,
+      modifyUrl: guestLinks.modifyUrl,
+      cancelUrl: guestLinks.cancelUrl,
     };
   }
 
@@ -1029,9 +1065,7 @@ export class ReservationsService {
     reservation: ReservationRecord,
   ): ReservationWebhookEvent[] {
     const events: ReservationWebhookEvent[] = ['reservation.created'];
-    events.push(
-      ...this.resolveWebhookStatusEvents(null, reservation.status),
-    );
+    events.push(...this.resolveWebhookStatusEvents(null, reservation.status));
     return Array.from(new Set(events));
   }
 
@@ -1039,10 +1073,7 @@ export class ReservationsService {
     before: ReservationRecord,
     after: ReservationRecord,
   ): ReservationWebhookEvent[] {
-    const events = this.resolveWebhookStatusEvents(
-      before.status,
-      after.status,
-    );
+    const events = this.resolveWebhookStatusEvents(before.status, after.status);
     if (
       before.status === after.status &&
       this.hasReservationDetailsChanged(before, after)
@@ -1075,16 +1106,28 @@ export class ReservationsService {
     after: ReservationRecord,
   ): boolean {
     if (before.guestName !== after.guestName) return true;
-    if (this.normalizeNullableString(before.guestEmail) !== this.normalizeNullableString(after.guestEmail)) {
+    if (
+      this.normalizeNullableString(before.guestEmail) !==
+      this.normalizeNullableString(after.guestEmail)
+    ) {
       return true;
     }
-    if (this.normalizeNullableString(before.guestPhone) !== this.normalizeNullableString(after.guestPhone)) {
+    if (
+      this.normalizeNullableString(before.guestPhone) !==
+      this.normalizeNullableString(after.guestPhone)
+    ) {
       return true;
     }
-    if (this.normalizeNullableString(before.notes) !== this.normalizeNullableString(after.notes)) {
+    if (
+      this.normalizeNullableString(before.notes) !==
+      this.normalizeNullableString(after.notes)
+    ) {
       return true;
     }
-    if (this.normalizeNullableString(before.channel) !== this.normalizeNullableString(after.channel)) {
+    if (
+      this.normalizeNullableString(before.channel) !==
+      this.normalizeNullableString(after.channel)
+    ) {
       return true;
     }
     if (Number(before.partySize) !== Number(after.partySize)) return true;
@@ -1337,17 +1380,13 @@ export class ReservationsService {
     const forbidden: Array<keyof UpdateReservationDto> = [
       'status',
       'tableId',
-      'partySize',
-      'date',
-      'time',
-      'notes',
       'durationMinutes',
       'channel',
     ];
     for (const key of forbidden) {
       if (dto[key] !== undefined) {
         throw new ForbiddenException(
-          'Guests may only update contact information',
+          'Guests may only update contact information, party size, date, time, and notes',
         );
       }
     }

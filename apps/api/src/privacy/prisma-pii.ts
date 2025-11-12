@@ -215,7 +215,8 @@ function traverse(value: Record<string, unknown>, seen: WeakSet<object>) {
 function maybeDecryptReservation(value: Record<string, unknown>) {
   if (!('guestEmail' in value) && !('guestPhone' in value)) return;
 
-  const version = typeof value.piiKeyVersion === 'string' ? value.piiKeyVersion : null;
+  const version =
+    typeof value.piiKeyVersion === 'string' ? value.piiKeyVersion : null;
 
   if (typeof value.guestEmail === 'string') {
     value.guestEmail = decryptPii(value.guestEmail, version);

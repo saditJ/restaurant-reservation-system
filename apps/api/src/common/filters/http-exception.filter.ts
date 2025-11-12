@@ -34,7 +34,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const payload = this.extractErrorPayload(exception);
     const isHttpException = exception instanceof HttpException;
 
-    const shouldSanitize = status >= HttpStatus.INTERNAL_SERVER_ERROR && !isHttpException;
+    const shouldSanitize =
+      status >= HttpStatus.INTERNAL_SERVER_ERROR && !isHttpException;
     const responseMessage = shouldSanitize
       ? 'Internal server error'
       : payload.message;
@@ -45,8 +46,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         code,
         message: responseMessage,
         details:
-          responseDetails ??
-          (requestId ? { request_id: requestId } : null),
+          responseDetails ?? (requestId ? { request_id: requestId } : null),
       },
     };
 

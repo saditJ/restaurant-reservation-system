@@ -13,7 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "node -r ./jest.env.setup.js ../../node_modules/jest/bin/jest.js",
+    "test": "jest",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -33,23 +33,32 @@
     "openapi:generate": "tsx scripts/generate-openapi.ts"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.4.4",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.0.2",
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.208.0",
+    "@opentelemetry/instrumentation-http": "^0.208.0",
+    "@opentelemetry/instrumentation-undici": "^0.19.0",
+    "@opentelemetry/resources": "^2.2.0",
+    "@opentelemetry/sdk-node": "^0.208.0",
+    "@opentelemetry/semantic-conventions": "^1.38.0",
     "@prisma/client": "^6.17.1",
-    "@js-temporal/polyfill": "^0.4.4",
+    "@prisma/instrumentation": "^6.19.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
+    "helmet": "^8.1.0",
     "ioredis": "^5.4.1",
-    "nodemailer": "^6.9.15",
     "nestjs-pino": "^4.4.1",
+    "nodemailer": "^6.9.15",
     "pino": "^9.13.1",
     "pino-pretty": "^13.1.2",
-    "reflect-metadata": "^0.2.2",
     "prom-client": "^15.1.1",
+    "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0"
@@ -105,10 +114,8 @@
     "setupFiles": [
       "<rootDir>/../jest.env.setup.js"
     ]
-  }
-  ,
+  },
   "prisma": {
     "seed": "tsx ../../prisma/seed.ts"
   }
 }
-

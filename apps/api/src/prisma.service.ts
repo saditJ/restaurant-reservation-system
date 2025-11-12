@@ -4,7 +4,9 @@ import { tenantScopeExtension } from './prisma/tenant-middleware';
 import { piiExtension } from './prisma/pii.extension';
 
 const shouldSkipPrismaConnect = () =>
-  ['1', 'true'].includes(String(process.env.PRISMA_SKIP_CONNECT ?? '').toLowerCase());
+  ['1', 'true'].includes(
+    String(process.env.PRISMA_SKIP_CONNECT ?? '').toLowerCase(),
+  );
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {

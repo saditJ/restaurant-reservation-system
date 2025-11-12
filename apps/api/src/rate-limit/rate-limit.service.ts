@@ -33,7 +33,10 @@ export class RateLimitService {
     this.redisStore = this.redis ? new RedisTokenBucketStore(this.redis) : null;
   }
 
-  resolveConfig(key: AuthenticatedApiKey, override?: RateLimitOptions): RateLimitConfig | null {
+  resolveConfig(
+    key: AuthenticatedApiKey,
+    override?: RateLimitOptions,
+  ): RateLimitConfig | null {
     const perMinute = sanitizeRate(
       override?.requestsPerMinute !== undefined
         ? override.requestsPerMinute
@@ -79,7 +82,9 @@ export class RateLimitService {
         now,
       });
     } catch (error) {
-      this.logger.warn(`Rate limiter failure for ${bucketKey}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Rate limiter failure for ${bucketKey}: ${(error as Error).message}`,
+      );
       return this.memoryStore.tryConsume({
         bucketKey,
         capacity: config.burstLimit,
@@ -105,7 +110,10 @@ type TokenBucketConsumeArgs = {
 };
 
 class MemoryTokenBucketStore {
-  private readonly buckets = new Map<string, { tokens: number; updatedAt: number }>();
+  private readonly buckets = new Map<
+    string,
+    { tokens: number; updatedAt: number }
+  >();
   private readonly ttlMs = 10 * 60 * 1000;
 
   tryConsume(args: TokenBucketConsumeArgs): TokenBucketResult {

@@ -11,7 +11,12 @@ import type { Request } from 'express';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { AdminApiGuard } from '../auth/admin-api.guard';
 import type { AuthenticatedApiKey } from '../auth/api-key.service';
-import { PrivacyService, PrivacyEraseResponse, PrivacyExportResponse } from './privacy.service';
+import { AuditMetadata } from '../audit/audit-log.service';
+import {
+  PrivacyService,
+  PrivacyEraseResponse,
+  PrivacyExportResponse,
+} from './privacy.service';
 
 type ApiRequest = Request & {
   apiKey?: AuthenticatedApiKey;
@@ -40,7 +45,11 @@ export class PrivacyController {
     @Query('email') email: string,
   ): Promise<PrivacyExportResponse> {
     const actor = formatActor(req.apiKey);
-    return this.privacy.exportGuestData(actor, email);
+    return this.privacy.exportGuestData(
+      actor,
+      email,
+      buildAuditMetadata(req, '/v1/privacy/guest/export', 'GET', 200),
+    );
   }
 
   @Post('erase')
@@ -49,11 +58,30 @@ export class PrivacyController {
     @Body() body: EraseRequestBody,
   ): Promise<PrivacyEraseResponse> {
     const actor = formatActor(req.apiKey);
-    return this.privacy.eraseGuestData(actor, body.email);
+    return this.privacy.eraseGuestData(
+      actor,
+      body.email,
+      buildAuditMetadata(req, '/v1/privacy/guest/erase', 'POST', 200),
+    );
   }
 }
 
 function formatActor(key: AuthenticatedApiKey | undefined): string {
   if (!key) return 'unknown';
   return `api-key:${key.id}`;
+}
+
+function buildAuditMetadata(
+  req: ApiRequest,
+  route: string,
+  method: string,
+  statusCode: number,
+): AuditMetadata {
+  return {
+    route,
+    method,
+    statusCode,
+    requestId: req.requestId,
+    tenantId: req.tenantId,
+  };
 }

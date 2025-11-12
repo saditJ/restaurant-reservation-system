@@ -16,7 +16,8 @@ const POLL_INTERVAL_MS = 60_000;
 const BATCH_SIZE = 10;
 const OFFER_TTL_MINUTES = 15;
 const LOOKAHEAD_DAYS = 1;
-const OFFER_URL_BASE = process.env.WAITLIST_OFFER_BASE_URL?.trim() || 'http://localhost:3002/r';
+const OFFER_URL_BASE =
+  process.env.WAITLIST_OFFER_BASE_URL?.trim() || 'http://localhost:3002/r';
 
 const logger = new Logger('WaitlistPromoter');
 const prisma = new PrismaService();
@@ -74,10 +75,11 @@ async function main() {
 
     await delay(POLL_INTERVAL_MS);
   }
-
 }
 
-async function processEntry(entry: Awaited<ReturnType<typeof waitlist.findWaitingEntries>>[number]) {
+async function processEntry(
+  entry: Awaited<ReturnType<typeof waitlist.findWaitingEntries>>[number],
+) {
   const slot = await findSlot(entry);
   if (!slot) {
     logger.debug(`No available slots found for waitlist ${entry.id}`);
@@ -96,13 +98,17 @@ async function processEntry(entry: Awaited<ReturnType<typeof waitlist.findWaitin
   }
 
   if (!result.waitlist.offerCode) {
-    logger.warn(`Waitlist ${entry.id} missing offer code after offer creation.`);
+    logger.warn(
+      `Waitlist ${entry.id} missing offer code after offer creation.`,
+    );
     return;
   }
 
   const token = result.waitlist.offerToken?.trim();
   if (!token) {
-    logger.warn(`Waitlist ${entry.id} missing offer token after offer creation.`);
+    logger.warn(
+      `Waitlist ${entry.id} missing offer token after offer creation.`,
+    );
     return;
   }
 
@@ -167,7 +173,9 @@ async function processEntry(entry: Awaited<ReturnType<typeof waitlist.findWaitin
   }
 }
 
-async function findSlot(entry: Awaited<ReturnType<typeof waitlist.findWaitingEntries>>[number]) {
+async function findSlot(
+  entry: Awaited<ReturnType<typeof waitlist.findWaitingEntries>>[number],
+) {
   const timezone = entry.venue.timezone;
   const desiredInstant = Temporal.Instant.from(entry.desiredAt.toISOString());
   const desiredZdt = desiredInstant.toZonedDateTimeISO(timezone);
@@ -215,4 +223,3 @@ main()
     await cache.onModuleDestroy();
     await prisma.$disconnect();
   });
-

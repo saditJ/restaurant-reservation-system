@@ -24,7 +24,7 @@ export default async function ReservationsPage({ searchParams }: PageProps) {
   const statusParam = getStringParam(resolvedSearchParams.status);
   const filter: FilterKey = STATUS_FILTERS.includes(statusParam as FilterKey)
     ? (statusParam as FilterKey)
-    : 'ALL';
+    : 'ACTIVE';
 
   const query = getStringParam(resolvedSearchParams.q) ?? '';
   const date = getStringParam(resolvedSearchParams.date) ?? '';
@@ -45,7 +45,8 @@ export default async function ReservationsPage({ searchParams }: PageProps) {
   const search = new URLSearchParams();
   search.set('limit', String(limit));
   search.set('offset', String(offset));
-  if (filter !== 'ALL') search.set('status', filter);
+  // ACTIVE is a client-side filter, not an API status
+  if (filter !== 'ALL' && filter !== 'ACTIVE') search.set('status', filter);
   if (query.trim()) search.set('q', query.trim());
   if (date.trim()) search.set('date', date.trim());
   search.set('sortBy', sortBy);

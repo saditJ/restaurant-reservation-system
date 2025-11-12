@@ -11,6 +11,7 @@ import type {
   ReservationListResponse,
   ReservationStatus,
   VenuePolicies,
+  VenueSettings,
 } from '@/lib/types';
 
 type QueryValue = string | number | boolean;
@@ -120,6 +121,13 @@ async function apiFetch<T>(
   return payload as T;
 }
 
+export function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function withJsonInit(body: unknown, init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers ?? {});
   headers.set('content-type', 'application/json');
@@ -128,13 +136,41 @@ function withJsonInit(body: unknown, init?: RequestInit): RequestInit {
   }
   return {
     ...init,
-    headers,
     body: JSON.stringify(body),
+    headers,
   };
 }
 
+function withIdempotency(init: RequestInit = {}, key?: string): RequestInit {
+  const headers = new Headers(init.headers ?? {});
+  const resolved = key ?? generateIdempotencyKey();
+  if (!headers.has('Idempotency-Key')) {
+    headers.set('Idempotency-Key', resolved);
+  }
+  return {
+    ...init,
+    headers,
+  };
+}
+
+type RawHealthResponse = {
+  status?: string;
+  ok?: boolean;
+};
+
 export async function checkHealth(): Promise<{ status: string }> {
-  return apiFetch<{ status: string }>('/health', { cache: 'no-store' });
+  const response = await apiFetch<RawHealthResponse>('/health', {
+    cache: 'no-store',
+  });
+
+  const status =
+    typeof response?.status === 'string'
+      ? response.status
+      : response?.ok === true
+        ? 'ok'
+        : 'error';
+
+  return { status };
 }
 
 export async function fetchAvailability(params: {
@@ -156,14 +192,17 @@ export async function fetchAvailability(params: {
   });
 }
 
-export async function createHold(body: {
-  date: string;
-  time: string;
-  partySize: number;
-  tableId: string | null;
-  venueId?: string;
-  createdBy?: string;
-}): Promise<Hold> {
+export async function createHold(
+  body: {
+    date: string;
+    time: string;
+    partySize: number;
+    tableId: string | null;
+    venueId?: string;
+    createdBy?: string;
+  },
+  options?: { idempotencyKey?: string },
+): Promise<Hold> {
   const payload = {
     venueId: body.venueId ?? VENUE_ID,
     date: body.date,
@@ -172,7 +211,17 @@ export async function createHold(body: {
     tableId: body.tableId,
     createdBy: body.createdBy ?? 'guest-widget',
   };
-  return apiFetch<Hold>('/holds', withJsonInit(payload, { method: 'POST' }));
+  const headers =
+    options?.idempotencyKey !== undefined
+      ? { 'Idempotency-Key': options.idempotencyKey }
+      : undefined;
+  return apiFetch<Hold>(
+    '/holds',
+    withJsonInit(payload, {
+      method: 'POST',
+      headers,
+    }),
+  );
 }
 
 export async function createReservation(
@@ -267,5 +316,59 @@ export async function getVenuePolicies(
   return apiFetch<VenuePolicies>(
     `/venues/${encodeURIComponent(venueId)}/policies`,
     { cache: 'no-store' },
+  );
+}
+
+export async function getVenueSettings(
+  venueId: string = VENUE_ID,
+): Promise<VenueSettings> {
+  return apiFetch<VenueSettings>(
+    `/venues/${encodeURIComponent(venueId)}/settings`,
+    { cache: 'no-store' },
+  );
+}
+
+export async function getGuestReservation(
+  token: string,
+): Promise<GuestReservationSummary> {
+  return apiFetch<GuestReservationSummary>(
+    `/guest/reservations/${encodeURIComponent(token)}`,
+    { cache: 'no-store' },
+  );
+}
+
+export async function cancelGuestReservation(
+  token: string,
+  options?: { idempotencyKey?: string },
+): Promise<GuestReservationSummary> {
+  return apiFetch<GuestReservationSummary>(
+    `/guest/reservations/${encodeURIComponent(token)}/cancel`,
+    withIdempotency(
+      {
+        method: 'POST',
+      },
+      options?.idempotencyKey,
+    ),
+  );
+}
+
+export async function rescheduleGuestReservation(
+  token: string,
+  body: { date: string; time: string; partySize?: number },
+  options?: { idempotencyKey?: string },
+): Promise<GuestReservationSummary> {
+  const payload: Record<string, unknown> = {
+    date: body.date,
+    time: body.time,
+  };
+  if (body.partySize !== undefined) {
+    payload.partySize = body.partySize;
+  }
+  return apiFetch<GuestReservationSummary>(
+    `/guest/reservations/${encodeURIComponent(token)}/reschedule`,
+    withIdempotency(
+      withJsonInit(payload, { method: 'POST' }),
+      options?.idempotencyKey,
+    ),
   );
 }

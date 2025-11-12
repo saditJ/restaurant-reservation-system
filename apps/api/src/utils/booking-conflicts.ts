@@ -1,8 +1,4 @@
-import {
-  HoldStatus,
-  Prisma,
-  ReservationStatus,
-} from '@prisma/client';
+import { HoldStatus, Prisma, ReservationStatus } from '@prisma/client';
 
 export const BLOCKING_RESERVATION_STATUSES: ReservationStatus[] = [
   ReservationStatus.PENDING,
@@ -86,7 +82,10 @@ export async function findSlotConflicts(
   const targetEnd = new Date(targetStart.getTime() + durationMinutes * 60_000);
   const requestedTables = new Set(
     (tableIds ?? (tableId ? [tableId] : []))
-      .filter((value): value is string => typeof value === 'string' && value.length > 0)
+      .filter(
+        (value): value is string =>
+          typeof value === 'string' && value.length > 0,
+      )
       .map((value) => value),
   );
 
@@ -208,5 +207,3 @@ export async function findSlotConflicts(
 export function hasSlotConflicts(conflicts: SlotConflicts): boolean {
   return conflicts.reservations.length > 0 || conflicts.holds.length > 0;
 }
-
-

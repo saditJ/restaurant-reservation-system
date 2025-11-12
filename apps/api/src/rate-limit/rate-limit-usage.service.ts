@@ -31,26 +31,34 @@ export class RateLimitUsageService {
   ) {
     this.redis = cache.getClient();
     this.quotaEnforced = process.env.QUOTA_ENFORCE?.toLowerCase() !== 'false';
-    this.monthlyDefaultCap = Number(process.env.QUOTA_MONTHLY_DEFAULT ?? 100000);
+    this.monthlyDefaultCap = Number(
+      process.env.QUOTA_MONTHLY_DEFAULT ?? 100000,
+    );
   }
 
-  async recordAllow(keyId: string): Promise<void> {
+  async recordAllow(keyId: string, cost = 1): Promise<void> {
+    const amount = Number.isFinite(cost) && cost > 0 ? Math.floor(cost) : 1;
     if (this.redis) {
-      await this.incrementRedis('allow', keyId);
+      await this.incrementRedis('allow', keyId, amount);
+      await this.incrementDailyUsage(keyId, amount);
       return;
     }
-    this.incrementMemory('allow', keyId);
+    this.incrementMemory('allow', keyId, amount);
   }
 
-  async recordDrop(keyId: string): Promise<void> {
+  async recordDrop(keyId: string, amount = 1): Promise<void> {
+    const delta =
+      Number.isFinite(amount) && amount > 0 ? Math.floor(amount) : 1;
     if (this.redis) {
-      await this.incrementRedis('drop', keyId);
+      await this.incrementRedis('drop', keyId, delta);
       return;
     }
-    this.incrementMemory('drop', keyId);
+    this.incrementMemory('drop', keyId, delta);
   }
 
-  async getUsageSummary(keyIds: string[]): Promise<Record<string, UsageSummary>> {
+  async getUsageSummary(
+    keyIds: string[],
+  ): Promise<Record<string, UsageSummary>> {
     if (keyIds.length === 0) return {};
     if (this.redis) {
       return this.fetchFromRedis(keyIds);
@@ -70,19 +78,28 @@ export class RateLimitUsageService {
 
       const cap = await this.getApiKeyCap(apiKeyId);
       if (newCount > cap) {
-        this.logger.warn(`API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`);
+        this.logger.warn(
+          `API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`,
+        );
         throw new Error('QUOTA_EXCEEDED');
       }
     } else {
       // In-memory fallback
       const memKey = `${apiKeyId}:${month}`;
       const currentMemory = this.memory.get(memKey);
-      const count = currentMemory ? Array.from(currentMemory.values()).reduce((sum, b) => sum + b.allows, 0) : 0;
+      const count = currentMemory
+        ? Array.from(currentMemory.values()).reduce(
+            (sum, b) => sum + b.allows,
+            0,
+          )
+        : 0;
       const newCount = count + cost;
 
       const cap = await this.getApiKeyCap(apiKeyId);
       if (newCount > cap) {
-        this.logger.warn(`API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`);
+        this.logger.warn(
+          `API key ${apiKeyId} exceeded monthly quota: ${newCount}/${cap}`,
+        );
         throw new Error('QUOTA_EXCEEDED');
       }
     }
@@ -100,7 +117,12 @@ export class RateLimitUsageService {
     } else {
       const memKey = `${apiKeyId}:${month}`;
       const currentMemory = this.memory.get(memKey);
-      used = currentMemory ? Array.from(currentMemory.values()).reduce((sum, b) => sum + b.allows, 0) : 0;
+      used = currentMemory
+        ? Array.from(currentMemory.values()).reduce(
+            (sum, b) => sum + b.allows,
+            0,
+          )
+        : 0;
     }
 
     const resetDate = this.getResetDate();
@@ -115,16 +137,20 @@ export class RateLimitUsageService {
     try {
       const apiKey = await this.prisma.apiKey.findUnique({
         where: { id: apiKeyId },
-        select: { tenantId: true },
+        select: { tenantId: true, monthlyCap: true },
       });
 
       if (!apiKey) return this.monthlyDefaultCap;
 
-      // Could extend schema to add monthlyCap to ApiKey or Tenant tables
-      // For now, use the default
+      if (typeof apiKey.monthlyCap === 'number' && apiKey.monthlyCap > 0) {
+        return apiKey.monthlyCap;
+      }
+
       return this.monthlyDefaultCap;
     } catch (error) {
-      this.logger.warn(`Failed to fetch API key cap for ${apiKeyId}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to fetch API key cap for ${apiKeyId}: ${(error as Error).message}`,
+      );
       return this.monthlyDefaultCap;
     }
   }
@@ -149,36 +175,46 @@ export class RateLimitUsageService {
     return resetDate.toISOString();
   }
 
-  private async incrementRedis(kind: 'allow' | 'drop', keyId: string) {
+  private async incrementRedis(
+    kind: 'allow' | 'drop',
+    keyId: string,
+    amount = 1,
+  ) {
     const bucket = this.currentBucket();
     const redisKey = this.composeRedisKey(kind, keyId, bucket);
     const client = this.redis!;
     await client
       .multi()
-      .incrby(redisKey, 1)
+      .incrby(redisKey, amount)
       .pexpire(redisKey, BUCKET_TTL_MS)
       .exec();
   }
 
-  private incrementMemory(kind: 'allow' | 'drop', keyId: string) {
+  private incrementMemory(kind: 'allow' | 'drop', keyId: string, amount = 1) {
     const bucket = this.currentBucket();
     const now = Date.now();
     if (!this.memory.has(keyId)) {
       this.memory.set(keyId, new Map());
     }
     const buckets = this.memory.get(keyId)!;
-    const entry = buckets.get(bucket) ?? { allows: 0, drops: 0, expiresAt: now + BUCKET_TTL_MS };
+    const entry = buckets.get(bucket) ?? {
+      allows: 0,
+      drops: 0,
+      expiresAt: now + BUCKET_TTL_MS,
+    };
     if (kind === 'allow') {
-      entry.allows += 1;
+      entry.allows += amount;
     } else {
-      entry.drops += 1;
+      entry.drops += amount;
     }
     entry.expiresAt = now + BUCKET_TTL_MS;
     buckets.set(bucket, entry);
     this.pruneMemory(buckets, now);
   }
 
-  private async fetchFromRedis(keyIds: string[]): Promise<Record<string, UsageSummary>> {
+  private async fetchFromRedis(
+    keyIds: string[],
+  ): Promise<Record<string, UsageSummary>> {
     const buckets = this.lastBuckets(24);
     const client = this.redis!;
     const pipeline = client.multi();
@@ -234,8 +270,38 @@ export class RateLimitUsageService {
     return summary;
   }
 
-  private composeRedisKey(kind: 'allow' | 'drop', keyId: string, bucket: string) {
+  private composeRedisKey(
+    kind: 'allow' | 'drop',
+    keyId: string,
+    bucket: string,
+  ) {
     return `rl:${kind}:${keyId}:${bucket}`;
+  }
+
+  private currentDayKey() {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = `${now.getUTCMonth() + 1}`.padStart(2, '0');
+    const day = `${now.getUTCDate()}`.padStart(2, '0');
+    return `${year}${month}${day}`;
+  }
+
+  private async incrementDailyUsage(apiKeyId: string, amount: number) {
+    if (!this.redis) return;
+    const dayKey = this.currentDayKey();
+    const redisKey = `usage:${apiKeyId}:${dayKey}`;
+    const ttlMs = 45 * 24 * 60 * 60 * 1000;
+    try {
+      await this.redis
+        .multi()
+        .incrby(redisKey, amount)
+        .pexpire(redisKey, ttlMs)
+        .exec();
+    } catch (error) {
+      this.logger.warn(
+        `Failed to increment daily usage for key ${apiKeyId}: ${(error as Error).message}`,
+      );
+    }
   }
 
   private currentBucket() {

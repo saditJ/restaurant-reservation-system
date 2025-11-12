@@ -23,6 +23,9 @@ export default function Home() {
             <Link href="/settings" className="hover:underline">
               Settings
             </Link>
+            <Link href="/privacy" className="hover:underline">
+              Privacy
+            </Link>
             <Link href="/audit" className="hover:underline">
               Audit
             </Link>

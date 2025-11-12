@@ -35,7 +35,9 @@ export function requestIdMiddleware(
   const start = process.hrtime.bigint();
   res.on('finish', () => {
     const diff = Number(process.hrtime.bigint() - start) / 1_000_000;
-    req.responseDurationMs = Number.isFinite(diff) ? Math.max(diff, 0) : undefined;
+    req.responseDurationMs = Number.isFinite(diff)
+      ? Math.max(diff, 0)
+      : undefined;
   });
 
   next();

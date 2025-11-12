@@ -9,6 +9,11 @@ import { RateLimitUsageService } from './rate-limit-usage.service';
 @Module({
   imports: [CacheModule, DatabaseModule, forwardRef(() => MetricsModule)],
   providers: [RateLimitService, RateLimitGuard, RateLimitUsageService],
-  exports: [RateLimitService, RateLimitUsageService, RateLimitGuard, MetricsModule],
+  exports: [
+    RateLimitService,
+    RateLimitUsageService,
+    RateLimitGuard,
+    MetricsModule,
+  ],
 })
 export class RateLimitModule {}

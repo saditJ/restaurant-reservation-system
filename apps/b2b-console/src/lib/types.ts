@@ -283,4 +283,123 @@ export type WaitlistOfferSummary = {
   expiresAt: string | null;
 };
 
+export type VenueSettings = {
+  venueId: string;
+  name: string;
+  city: string | null;
+  timezone: string;
+  turnTimeMin: number;
+  defaultDurationMin: number;
+  holdTtlMin: number;
+  phone: string | null;
+  website: string | null;
+};
+
+export type ShiftSummary = {
+  id: string;
+  venueId: string;
+  dow: number;
+  startsAt: string;
+  endsAt: string;
+  capacitySeats: number;
+  capacityCovers: number;
+  isActive: boolean;
+  updatedAt: string;
+};
+
+export type ShiftListResponse = {
+  items: ShiftSummary[];
+};
+
+export type MenuItem = {
+  id: string;
+  name: string;
+  short: string | null;
+  price: number;
+  currency: 'ALL' | 'EUR';
+  isAvailable: boolean;
+  imageUrl: string | null;
+  tags: string[];
+  position: number;
+};
+
+export type MenuSection = {
+  id: string;
+  title: string;
+  description: string | null;
+  position: number;
+  items: MenuItem[];
+};
+
+export type AuditLogEntry = {
+  ts: string;
+  actor: string;
+  route: string | null;
+  method: string | null;
+  status: number | null;
+  requestId: string | null;
+  tenantId: string | null;
+};
+
+export type AuditLogResponse = {
+  items: AuditLogEntry[];
+  total: number;
+};
+
+export type PrivacyExportResponse = {
+  generatedAt: string;
+  guest: {
+    email: string;
+    reservations: Array<{
+      id: string;
+      code: string;
+      status: string;
+    }>;
+  };
+};
+
+export type PrivacyEraseResponse = {
+  email: string;
+  processed: number;
+  anonymized: Array<{
+    id: string;
+    anonymizedAt: string;
+    tokenTail: string | null;
+  }>;
+  skipped: Array<{
+    id: string;
+    reason: string;
+  }>;
+};
+
+export type FloorplanRoom = {
+  w: number;
+  h: number;
+  grid: number;
+};
+
+export type FloorplanTable = {
+  id: string;
+  name: string;
+  min: number;
+  max: number;
+  x: number;
+  y: number;
+  angle: number;
+  shape: 'rect' | 'circle' | 'booth';
+  w: number;
+  h: number;
+  zone: string | null;
+};
+
+export type FloorplanResponse = {
+  room: FloorplanRoom;
+  tables: FloorplanTable[];
+};
+
+export type FloorplanOccupancy = {
+  busyTableIds: string[];
+  holdsTableIds: string[];
+};
+
 

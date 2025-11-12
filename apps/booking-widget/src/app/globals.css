@@ -3,12 +3,18 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --primary: #111827;
+  --secondary: #4b5563;
+  --accent: #111827;
+  --theme-font: Arial, Helvetica, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --font-sans: var(--theme-font, var(--font-geist-sans));
   --font-mono: var(--font-geist-mono);
 }
 
@@ -22,11 +28,11 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--theme-font, Arial, Helvetica, sans-serif);
   min-height: 100vh;
 }
 
 :focus-visible {
-  outline: 2px solid #111827;
+  outline: 2px solid var(--accent, #111827);
   outline-offset: 2px;
 }

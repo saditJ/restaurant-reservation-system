@@ -4,6 +4,14 @@ import { PrismaService } from '../prisma.service';
 
 export type AuditLogPayload = Record<string, unknown> | null | undefined;
 
+export type AuditMetadata = {
+  route?: string;
+  method?: string;
+  statusCode?: number;
+  requestId?: string;
+  tenantId?: string;
+};
+
 @Injectable()
 export class AuditLogService {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,6 +22,11 @@ export class AuditLogService {
     resource: string;
     before?: AuditLogPayload;
     after?: AuditLogPayload;
+    route?: string;
+    method?: string;
+    statusCode?: number;
+    requestId?: string;
+    tenantId?: string;
   }): Promise<void> {
     await this.prisma.auditLog.create({
       data: {
@@ -22,6 +35,11 @@ export class AuditLogService {
         resource: params.resource,
         before: this.toJsonValue(params.before),
         after: this.toJsonValue(params.after),
+        route: this.normalizeString(params.route),
+        method: this.normalizeString(params.method),
+        statusCode: this.normalizeStatus(params.statusCode),
+        requestId: this.normalizeString(params.requestId),
+        tenantId: this.normalizeString(params.tenantId),
       },
     });
   }
@@ -30,8 +48,9 @@ export class AuditLogService {
     limit: number;
     offset: number;
     actor?: string;
-    action?: string;
-    resource?: string;
+    route?: string;
+    method?: string;
+    tenantId?: string;
     from?: Date;
     to?: Date;
   }): Promise<{ total: number; items: AuditLog[] }> {
@@ -39,12 +58,15 @@ export class AuditLogService {
     if (params.actor) {
       where.actor = { contains: params.actor.trim(), mode: 'insensitive' };
     }
-    if (params.action) {
-      where.action = { contains: params.action.trim(), mode: 'insensitive' };
+    if (params.route) {
+      where.route = { contains: params.route.trim(), mode: 'insensitive' };
     }
-    if (params.resource) {
-      where.resource = {
-        contains: params.resource.trim(),
+    if (params.method) {
+      where.method = { equals: params.method.trim(), mode: 'insensitive' };
+    }
+    if (params.tenantId) {
+      where.tenantId = {
+        contains: params.tenantId.trim(),
         mode: 'insensitive',
       };
     }
@@ -82,5 +104,18 @@ export class AuditLogService {
         value === undefined ? null : value,
       ),
     );
+  }
+
+  private normalizeString(value?: string): string | null {
+    if (!value) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private normalizeStatus(value?: number): number | null {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      return null;
+    }
+    return Math.max(0, Math.floor(value));
   }
 }

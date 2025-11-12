@@ -1,7 +1,7 @@
 /**
  * Transparent PII encryption extension for Prisma.
  * Automatically encrypts/decrypts sensitive fields on write/read operations.
- * 
+ *
  * Supports key rotation via PII_KEY_VERSION environment variable.
  */
 import { Prisma } from '@prisma/client';
@@ -208,6 +208,7 @@ function processNestedWrites(
  * Recursively decrypt results (single record, array, or nested relations)
  */
 function decryptResults(
+  modelName: ModelName,
   result: unknown,
   processedSet = new WeakSet(),
 ): unknown {
@@ -215,7 +216,7 @@ function decryptResults(
 
   // Handle arrays
   if (Array.isArray(result)) {
-    return result.map((item) => decryptResults(item, processedSet));
+    return result.map((item) => decryptResults(modelName, item, processedSet));
   }
 
   // Handle plain objects
@@ -223,19 +224,26 @@ function decryptResults(
   if (processedSet.has(result)) return result;
   processedSet.add(result);
 
-  // Try to decrypt if this looks like a model record
-  for (const modelName of Object.keys(PII_FIELD_CONFIG) as ModelName[]) {
-    // Simple heuristic: if it has 'id' and is not already processed
-    if ('id' in result && typeof result.id === 'string') {
-      decryptFields(modelName, result);
-      break; // Only decrypt once per record
-    }
+  // Decrypt the current record if it's the model we're looking for
+  if ('id' in result && typeof result.id === 'string') {
+    decryptFields(modelName, result);
   }
 
   // Recursively process nested relations
   for (const [key, value] of Object.entries(result)) {
     if (isPlainObject(value) || Array.isArray(value)) {
-      result[key] = decryptResults(value, processedSet);
+      // Try to detect nested model based on relation key
+      let nestedModel: ModelName | undefined;
+      if (key === 'reservation' || key === 'reservations') {
+        nestedModel = 'Reservation';
+      } else if (key === 'waitlist' || key === 'waitlists') {
+        nestedModel = 'Waitlist';
+      } else if (key === 'user' || key === 'users') {
+        nestedModel = 'User';
+      } else {
+        nestedModel = modelName; // Default to current model
+      }
+      result[key] = decryptResults(nestedModel, value, processedSet);
     }
   }
 
@@ -251,22 +259,30 @@ export const piiExtension = Prisma.defineExtension({
     $allModels: {
       async $allOperations({ model, operation, args, query }) {
         const modelName = model as string;
-        
+
         // Only process configured models
         if (!PII_FIELD_CONFIG[modelName as ModelName]) {
           return query(args);
         }
 
         const keyVersion = getActivePiiKeyVersion();
-        const isWrite = ['create', 'createMany', 'update', 'updateMany', 'upsert'].includes(
-          operation,
-        );
+        const isWrite = [
+          'create',
+          'createMany',
+          'update',
+          'updateMany',
+          'upsert',
+        ].includes(operation);
 
         // Encrypt fields on write operations
         if (isWrite && args && isPlainObject(args)) {
           // Handle direct data field
           if (isPlainObject((args as any).data)) {
-            encryptFields(modelName as ModelName, (args as any).data, keyVersion);
+            encryptFields(
+              modelName as ModelName,
+              (args as any).data,
+              keyVersion,
+            );
           }
 
           // Handle array of data (createMany)
@@ -300,7 +316,7 @@ export const piiExtension = Prisma.defineExtension({
         ].includes(operation);
 
         if (isRead && result) {
-          return decryptResults(result);
+          return decryptResults(modelName as ModelName, result);
         }
 
         return result;

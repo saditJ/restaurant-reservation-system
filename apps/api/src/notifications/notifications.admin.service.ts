@@ -51,7 +51,9 @@ export type NotificationOutboxList = {
 export class NotificationsAdminService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(filters: NotificationOutboxFilters = {}): Promise<NotificationOutboxList> {
+  async list(
+    filters: NotificationOutboxFilters = {},
+  ): Promise<NotificationOutboxList> {
     const where = this.buildWhere(filters);
     const limit = this.clamp(filters.limit ?? 25, 1, 100);
     const offset = Math.max(filters.offset ?? 0, 0);
@@ -84,7 +86,9 @@ export class NotificationsAdminService {
       throw new NotFoundException('Notification not found');
     }
     if (existing.status !== NotificationOutboxStatus.FAILED) {
-      throw new BadRequestException('Only failed notifications can be requeued');
+      throw new BadRequestException(
+        'Only failed notifications can be requeued',
+      );
     }
 
     const updated = await this.prisma.notificationOutbox.update({
@@ -130,9 +134,11 @@ export class NotificationsAdminService {
     return Math.max(min, Math.min(max, Math.floor(value)));
   }
 
-  private toDto(row: Prisma.NotificationOutboxGetPayload<{
-    include: { reservation: { include: { venue: true } } };
-  }>): NotificationOutboxItem {
+  private toDto(
+    row: Prisma.NotificationOutboxGetPayload<{
+      include: { reservation: { include: { venue: true } } };
+    }>,
+  ): NotificationOutboxItem {
     const payload = this.normalizePayload(row.payload);
     const reservation = row.reservation;
     return {
@@ -147,7 +153,7 @@ export class NotificationsAdminService {
       guestContact: row.guestContact,
       event: payload?.event ?? 'created',
       channel: payload?.channel ?? 'email',
-      language: (payload?.language ?? null) as string | null,
+      language: payload?.language ?? null,
       reservation: {
         id: reservation?.id ?? null,
         code: reservation?.code ?? null,

@@ -22,11 +22,21 @@ const SANDBOX_TENANT_NAME = 'Sandbox Tenant';
 const SANDBOX_TENANT_PLAN_ID = 'tenant-plan-sandbox';
 
 const DEMO_SEED_API_KEY_HASH =
-  '01ea27eafbe8e5c7b672de58156a9277d5db106dafb491360d397f6b70b87bcc'; // sha256 of "demo-tenant-key"
+  '3700285e3c8496a57e45eb1ccd43f2424852788576961320fbb31f86f17edb61'; // sha256 of "dev-local-key"
 const DEFAULT_VENUE_ID = 'venue-brooklyn';
 
 function encryptSeed(value: string) {
   return Buffer.from(value.trim(), 'utf8').toString('base64');
+}
+
+function maskToken(value: string) {
+  const sanitized = value.trim();
+  if (sanitized.length <= 8) {
+    return sanitized;
+  }
+  const head = sanitized.slice(0, 6);
+  const tail = sanitized.slice(-4);
+  return `${head}…${tail}`;
 }
 
 type SeedReservation = {
@@ -462,12 +472,16 @@ async function seedTenants() {
     where: { slug: DEMO_TENANT_SLUG },
     update: {
       name: DEMO_TENANT_NAME,
+      city: 'Tirana',
+      timezone: 'Europe/Tirane',
       isActive: true,
     },
     create: {
       id: DEMO_TENANT_ID,
       name: DEMO_TENANT_NAME,
       slug: DEMO_TENANT_SLUG,
+      city: 'Tirana',
+      timezone: 'Europe/Tirane',
       isActive: true,
     },
   });
@@ -529,12 +543,16 @@ async function seedTenants() {
     where: { slug: SANDBOX_TENANT_SLUG },
     update: {
       name: SANDBOX_TENANT_NAME,
+      city: 'Brooklyn',
+      timezone: 'America/New_York',
       isActive: true,
     },
     create: {
       id: SANDBOX_TENANT_ID,
       name: SANDBOX_TENANT_NAME,
       slug: SANDBOX_TENANT_SLUG,
+      city: 'Brooklyn',
+      timezone: 'America/New_York',
       isActive: true,
     },
   });
@@ -708,10 +726,12 @@ async function main() {
     // Seed menu with items
     const menu = await prisma.menu.create({
       data: {
+        tenantId: demoTenantId,
         venueId: venue.id,
         name: 'Main Menu',
         description: 'Our signature dishes',
         isActive: true,
+        isPublic: true,
         displayOrder: 0,
       },
     });
@@ -740,45 +760,55 @@ async function main() {
           sectionId: appetizerSection.id,
           name: 'Bruschetta',
           description: 'Toasted bread with fresh tomatoes, garlic, and basil',
-          price: 12.00,
-          currency: 'USD',
+          price: 1200,
+          currency: 'ALL',
           isAvailable: true,
+          short: 'Toasted bread with tomatoes, garlic, and basil',
+          tags: ['starter'],
           displayOrder: 0,
         },
         {
           sectionId: appetizerSection.id,
           name: 'Calamari Fritti',
           description: 'Crispy fried squid with marinara sauce',
-          price: 15.00,
-          currency: 'USD',
+          price: 1500,
+          currency: 'ALL',
           isAvailable: true,
+          short: 'Crispy fried squid with marinara sauce',
+          tags: ['seafood'],
           displayOrder: 1,
         },
         {
           sectionId: appetizerSection.id,
           name: 'Caprese Salad',
           description: 'Fresh mozzarella, tomatoes, and basil',
-          price: 14.00,
-          currency: 'USD',
+          price: 1400,
+          currency: 'ALL',
           isAvailable: true,
+          short: 'Fresh mozzarella, tomatoes, basil',
+          tags: ['vegetarian'],
           displayOrder: 2,
         },
         {
           sectionId: entreeSection.id,
           name: 'Spaghetti Carbonara',
           description: 'Classic Roman pasta with eggs, cheese, and pancetta',
-          price: 22.00,
-          currency: 'USD',
+          price: 2200,
+          currency: 'ALL',
           isAvailable: true,
+          short: 'Classic Roman pasta with pancetta',
+          tags: ['signature'],
           displayOrder: 0,
         },
         {
           sectionId: entreeSection.id,
           name: 'Osso Buco',
           description: 'Braised veal shanks with vegetables',
-          price: 38.00,
-          currency: 'USD',
+          price: 3800,
+          currency: 'ALL',
           isAvailable: true,
+          short: 'Braised veal shanks with vegetables',
+          tags: ['chef-special'],
           displayOrder: 1,
         },
         {
@@ -862,14 +892,15 @@ main()
 
 async function seedApiKeys(defaultTenantId: string) {
   await prisma.apiKey.upsert({
-    where: { id: 'dev-local' },
+    where: { hashedKey: DEMO_SEED_API_KEY_HASH },
     update: {
       name: 'Development Console',
-      hashedKey: DEMO_SEED_API_KEY_HASH,
       isActive: true,
       rateLimitPerMin: 120,
       burstLimit: 60,
+      monthlyCap: 750_000,
       scopeJSON: ['default', 'admin'],
+      tokenPreview: maskToken('dev-local-key'),
       tenantId: defaultTenantId,
     },
     create: {
@@ -879,7 +910,9 @@ async function seedApiKeys(defaultTenantId: string) {
       isActive: true,
       rateLimitPerMin: 120,
       burstLimit: 60,
+      monthlyCap: 750_000,
       scopeJSON: ['default', 'admin'],
+      tokenPreview: maskToken('dev-local-key'),
       tenantId: defaultTenantId,
     },
   });

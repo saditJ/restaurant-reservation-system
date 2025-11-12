@@ -6,10 +6,7 @@ import {
 import { Prisma, Venue } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { AuditLogService } from '../audit/audit-log.service';
-import {
-  DEFAULT_VENUE_ID,
-  ensureDefaultVenue,
-} from '../utils/default-venue';
+import { DEFAULT_VENUE_ID, ensureDefaultVenue } from '../utils/default-venue';
 import { normalizeTimeTo24h } from '../utils/time';
 import { UpdateVenueSettingsDto } from './dto/update-venue-settings.dto';
 import { UpdateVenuePoliciesDto } from './dto/update-venue-policies.dto';
@@ -91,10 +88,7 @@ export class VenuesService {
       0,
     );
     const guestModify = this.normalizeMinutes(dto.guestCanModifyUntilMin, 0);
-    const retentionDays = this.normalizeMinutes(
-      dto.retainPersonalDataDays,
-      30,
-    );
+    const retentionDays = this.normalizeMinutes(dto.retainPersonalDataDays, 30);
     const before = this.toPoliciesResponse(venue);
     const updated = await this.prisma.venue.update({
       where: { id: venue.id },
@@ -213,4 +207,3 @@ export class VenuesService {
     };
   }
 }
-

@@ -86,7 +86,8 @@ export function decryptPii(
 }
 
 function lookupKeyForVersion(version: string | null | undefined): Buffer {
-  const requested = version && version.trim() ? version.trim() : PRIMARY_KEY.version;
+  const requested =
+    version && version.trim() ? version.trim() : PRIMARY_KEY.version;
   const cached = keyCache.get(requested);
   if (cached) return cached;
 

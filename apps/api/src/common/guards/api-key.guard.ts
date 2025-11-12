@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto';
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma.service';
 
 @Injectable()
@@ -25,7 +31,8 @@ export class ApiKeyGuard implements CanActivate {
     req.apiKeyId = record.id;
     // Default tenant from API key (can be overridden by TenantGuard if allowed)
     req.tenantId = record.tenantId;
-    req.actor = { kind: 'service', roles: ['integration'] };
+    const scopes = parseScopes(record.scopeJSON);
+    req.actor = { kind: 'service', roles: scopesToRoles(scopes) };
     void this.prisma.apiKey
       .update({
         where: { id: record.id },
@@ -34,4 +41,34 @@ export class ApiKeyGuard implements CanActivate {
       .catch(() => undefined);
     return true;
   }
+}
+
+function parseScopes(value: Prisma.JsonValue | null | undefined): string[] {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (typeof item === 'string' ? item : null))
+      .filter((item): item is string => Boolean(item));
+  }
+  if (typeof value === 'object' && value !== null && 'scopes' in value) {
+    const payload = value as { scopes?: unknown };
+    if (Array.isArray(payload.scopes)) {
+      return payload.scopes
+        .map((item) => (typeof item === 'string' ? item : null))
+        .filter((item): item is string => Boolean(item));
+    }
+  }
+  return [];
+}
+
+function scopesToRoles(scopes: string[]): string[] {
+  const roles = new Set<string>(['integration']);
+  for (const scope of scopes) {
+    if (scope === 'admin') {
+      roles.add('admin');
+    } else if (scope === 'provider') {
+      roles.add('provider');
+    }
+  }
+  return Array.from(roles);
 }

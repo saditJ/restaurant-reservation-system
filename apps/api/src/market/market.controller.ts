@@ -1,15 +1,10 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { MarketService } from './market.service';
-import {
-  VenueSearchDto,
-  VenueListResponseDto,
-} from './dto/venue-list.dto';
+import { VenueSearchDto, VenueListResponseDto } from './dto/venue-list.dto';
 import { VenueDetailDto } from './dto/venue-detail.dto';
-import {
-  SearchSuggestDto,
-  SearchSuggestResponseDto,
-} from './dto/search.dto';
+import { SearchSuggestDto, SearchSuggestResponseDto } from './dto/search.dto';
+import { VenueFacetsDto, VenueFacetResponseDto } from './dto/venue-facets.dto';
 
 @Controller('v1/market')
 @Public()
@@ -21,6 +16,13 @@ export class MarketController {
     @Query() dto: VenueSearchDto,
   ): Promise<VenueListResponseDto> {
     return this.marketService.searchVenues(dto);
+  }
+
+  @Get('venues/facets')
+  async getVenueFacets(
+    @Query() dto: VenueFacetsDto,
+  ): Promise<VenueFacetResponseDto> {
+    return this.marketService.getVenueFacets(dto);
   }
 
   @Get('venues/:slug')

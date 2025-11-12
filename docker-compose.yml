@@ -20,6 +20,7 @@ services:
       retries: 10
     networks:
       - reserve
+
   redis:
     image: redis:7
     container_name: reserve-redis
@@ -33,6 +34,7 @@ services:
       retries: 10
     networks:
       - reserve
+
   mailhog:
     image: mailhog/mailhog:latest
     container_name: reserve-mailhog
@@ -42,24 +44,30 @@ services:
       - '8025:8025'
     networks:
       - reserve
+
   api:
-    profiles:
-      - preview
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    command: >
+      sh -lc
+      "pnpm --filter api prisma:migrate:deploy &&
+       pnpm --filter api start:prod"
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://reserve:reserve@postgres:5432/reserve?schema=public
       REDIS_URL: redis://redis:6379/0
-      PII_SECRET: ${PII_SECRET:-preview-demo-secret}
-      PII_KEY_VERSION: ${PII_KEY_VERSION:-v1}
+      SMTP_URL: smtp://mailhog:1025
       API_PORT: 3003
       PORT: 3003
       LOG_LEVEL: info
-      API_BASE_INTERNAL: http://localhost:3003
-      API_KEY: ${API_KEY:-preview-admin-key}
-      SWAGGER_API_KEY: ${SWAGGER_API_KEY:-preview-admin-key}
+      API_BASE_INTERNAL: http://api:3003
+      API_KEY: dev-local-key
+      API_KEYS: dev-local-key
+      SWAGGER_API_KEY: dev-local-key
+      PII_SECRET: ${PII_SECRET:-preview-demo-secret}
+      PII_KEY_VERSION: ${PII_KEY_VERSION:-v1}
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,6 +77,126 @@ services:
       - '3003:3003'
     healthcheck:
       test: ['CMD', 'curl', '-f', 'http://localhost:3003/ready']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - reserve
+
+  market:
+    build:
+      context: .
+      dockerfile: configs/docker/next-app.Dockerfile
+      args:
+        APP_NAME: market
+        NEXT_PUBLIC_API_BASE: http://api:3003
+        API_BASE_INTERNAL: http://api:3003
+        API_KEY: dev-local-key
+        BOOKING_WIDGET_ORIGIN: http://widget:3002
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE: http://api:3003
+      API_BASE_INTERNAL: http://api:3003
+      API_KEY: dev-local-key
+      BOOKING_WIDGET_ORIGIN: http://widget:3002
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '3000:3000'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/api/health']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - reserve
+
+  widget:
+    build:
+      context: .
+      dockerfile: configs/docker/next-app.Dockerfile
+      args:
+        APP_NAME: booking-widget
+        NEXT_PUBLIC_API_BASE: http://api:3003
+        NEXT_PUBLIC_API_KEY: dev-local-key
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE: http://api:3003
+      NEXT_PUBLIC_API_KEY: dev-local-key
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '3002:3002'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3002']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - reserve
+
+  admin:
+    build:
+      context: .
+      dockerfile: configs/docker/next-app.Dockerfile
+      args:
+        APP_NAME: b2b-console
+        NEXT_PUBLIC_API_BASE: http://api:3003
+        NEXT_PUBLIC_VENUE_ID: venue-main
+        NEXT_PUBLIC_VENUE_TZ: Europe/Tirane
+        NEXT_PUBLIC_APP_ORIGIN: http://admin:3001
+        API_BASE_INTERNAL: http://api:3003
+        API_KEY: dev-local-key
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE: http://api:3003
+      NEXT_PUBLIC_VENUE_ID: venue-main
+      NEXT_PUBLIC_VENUE_TZ: Europe/Tirane
+      NEXT_PUBLIC_APP_ORIGIN: http://admin:3001
+      API_BASE_INTERNAL: http://api:3003
+      API_KEY: dev-local-key
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3001']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    networks:
+      - reserve
+
+  provider:
+    build:
+      context: .
+      dockerfile: configs/docker/next-app.Dockerfile
+      args:
+        APP_NAME: provider
+        API_BASE_INTERNAL: http://api:3003
+        PROVIDER_API_KEY: dev-local-key
+        NEXT_PUBLIC_API_BASE: http://api:3003
+        NEXT_PUBLIC_BOOKING_DEMO_URL: http://widget:3002
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_BASE_INTERNAL: http://api:3003
+      PROVIDER_API_KEY: dev-local-key
+      NEXT_PUBLIC_API_BASE: http://api:3003
+      NEXT_PUBLIC_BOOKING_DEMO_URL: http://widget:3002
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - '3004:3004'
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3004']
       interval: 10s
       timeout: 5s
       retries: 12

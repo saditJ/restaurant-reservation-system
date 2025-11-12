@@ -42,8 +42,11 @@ export type WebhookEndpointDto = {
   url: string;
   description: string | null;
   isActive: boolean;
+  events: ReservationWebhookEvent[];
   createdAt: string;
   updatedAt: string;
+  secret?: string;
+  secretPreview?: WebhookSecretPreview;
 };
 
 export type WebhookDeliveryDto = {
@@ -54,7 +57,10 @@ export type WebhookDeliveryDto = {
   attempts: number;
   lastError: string | null;
   nextAttemptAt: string;
+  lastAttemptAt: string;
   deliveredAt: string | null;
+  failureReason: string | null;
+  failedAt: string | null;
   createdAt: string;
   updatedAt: string;
   payload: WebhookPayload;
@@ -66,6 +72,11 @@ export type WebhookDeliveryListResponse = {
   total: number;
 };
 
-export type WebhookSecretResponse = {
-  secret: string;
+export type WebhookSecretPreview = {
+  endpointId: string;
+  lastFour: string;
+  secretCreatedAt: string;
+  secretRotatedAt: string | null;
 };
+
+export type WebhookSecretResponse = WebhookSecretPreview;

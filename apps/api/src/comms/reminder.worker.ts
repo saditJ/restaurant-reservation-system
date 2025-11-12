@@ -4,6 +4,8 @@ import { Logger } from '@nestjs/common';
 import { CommTemplateKind, ReservationStatus } from '@prisma/client';
 import { CommService, ReservationCommDetails } from './comm.service';
 import { PrismaService } from '../prisma.service';
+import { LinkTokenService } from '../security/link-token.service';
+import { buildGuestReservationLinks } from '../utils/guest-links';
 
 const POLL_INTERVAL_MS = 60_000;
 const LOOKAHEAD_HOURS = 48;
@@ -12,6 +14,7 @@ const BATCH_SIZE = 25;
 const logger = new Logger('CommsReminderWorker');
 const prisma = new PrismaService();
 const comms = new CommService(prisma);
+const linkTokens = new LinkTokenService();
 
 let running = true;
 
@@ -25,7 +28,9 @@ process.on('SIGTERM', () => {
   running = false;
 });
 
-type ReminderCandidate = Awaited<ReturnType<typeof findDueReservations>>[number];
+type ReminderCandidate = Awaited<
+  ReturnType<typeof findDueReservations>
+>[number];
 
 async function main() {
   await prisma.$connect();
@@ -62,9 +67,7 @@ async function main() {
 
 async function findDueReservations() {
   const now = new Date();
-  const horizon = new Date(
-    now.getTime() + LOOKAHEAD_HOURS * 60 * 60 * 1000,
-  );
+  const horizon = new Date(now.getTime() + LOOKAHEAD_HOURS * 60 * 60 * 1000);
 
   const rows = await prisma.reservation.findMany({
     where: {
@@ -136,8 +139,9 @@ function buildCommDetails(
   reservation: ReminderCandidate,
 ): ReservationCommDetails {
   const baseUrl = resolveCommsBaseUrl();
-  const manageUrl = `${baseUrl}/reservations/${reservation.code}`;
+  const fallbackManageUrl = `${baseUrl}/reservations/${reservation.code}`;
   const offerUrl = `${baseUrl}/offers/${reservation.venueId}`;
+  const guestLinks = buildGuestReservationLinks(linkTokens, reservation.id);
   return {
     id: reservation.id,
     code: reservation.code,
@@ -150,7 +154,9 @@ function buildCommDetails(
       name: reservation.venue.name,
       timezone: reservation.venue.timezone,
     },
-    manageUrl,
+    manageUrl: guestLinks.modifyUrl ?? fallbackManageUrl,
+    modifyUrl: guestLinks.modifyUrl,
+    cancelUrl: guestLinks.cancelUrl,
     offerUrl,
   };
 }

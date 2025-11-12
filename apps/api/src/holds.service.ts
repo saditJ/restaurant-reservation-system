@@ -6,10 +6,7 @@ import {
 import { HoldStatus, Prisma, Venue } from '@prisma/client';
 import { PrismaService } from './prisma.service';
 import { normalizeTimeTo24h, toUtcInstant } from './utils/time';
-import {
-  DEFAULT_VENUE_ID,
-  ensureDefaultVenue,
-} from './utils/default-venue';
+import { DEFAULT_VENUE_ID, ensureDefaultVenue } from './utils/default-venue';
 import {
   findSlotConflicts,
   hasSlotConflicts,

@@ -79,10 +79,7 @@ export class WaitlistController {
   @UseGuards(ApiKeyGuard, RateLimitGuard)
   @RateLimit({ requestsPerMinute: 240, burstLimit: 120 })
   @Post('offer/:code/convert')
-  consumeOffer(
-    @Param('code') code: string,
-    @Body() body: { token?: string },
-  ) {
+  consumeOffer(@Param('code') code: string, @Body() body: { token?: string }) {
     return this.waitlist.consumeOffer(code, body?.token ?? null);
   }
 }

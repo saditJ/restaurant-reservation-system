@@ -59,7 +59,6 @@ async function main() {
 async function processVenue(venueId: string, cutoff: Date): Promise<number> {
   let total = 0;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const reservations = await prisma.reservation.findMany({
       where: {
@@ -68,10 +67,7 @@ async function processVenue(venueId: string, cutoff: Date): Promise<number> {
         slotStartUtc: { lt: cutoff },
         piiAnonymizedAt: null,
       },
-      orderBy: [
-        { slotStartUtc: 'asc' },
-        { id: 'asc' },
-      ],
+      orderBy: [{ slotStartUtc: 'asc' }, { id: 'asc' }],
       take: BATCH_SIZE,
       select: {
         id: true,

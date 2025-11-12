@@ -16,6 +16,8 @@ export type ApiKeyRecord = {
   isActive: boolean;
   rateLimitPerMin: number;
   burstLimit: number;
+  monthlyCap: number;
+  tokenPreview: string | null;
   scopes: ApiKeyScopes;
 };
 
@@ -24,6 +26,7 @@ export type CreateApiKeyParams = {
   name: string;
   rateLimitPerMin?: number;
   burstLimit?: number;
+  monthlyCap?: number;
   scopes?: ApiKeyScopes;
 };
 
@@ -31,6 +34,7 @@ export type UpdateApiKeyParams = {
   name?: string;
   rateLimitPerMin?: number;
   burstLimit?: number;
+  monthlyCap?: number;
   scopes?: ApiKeyScopes;
   isActive?: boolean;
 };
@@ -54,6 +58,16 @@ export class ApiKeyService implements OnModuleInit {
   generatePlaintextKey(): string {
     const entropy = randomBytes(24).toString('base64url');
     return `rk_${entropy}`;
+  }
+
+  formatTokenPreview(value: string): string {
+    const sanitized = value.trim();
+    if (sanitized.length <= 8) {
+      return sanitized;
+    }
+    const head = sanitized.slice(0, 6);
+    const tail = sanitized.slice(-4);
+    return `${head}…${tail}`;
   }
 
   async findByPlaintextKey(value: string): Promise<ApiKeyRecord | null> {
@@ -86,7 +100,9 @@ export class ApiKeyService implements OnModuleInit {
     const hashedKey = this.hashKey(plaintext);
     const rateLimitPerMin = sanitizeRate(params.rateLimitPerMin);
     const burstLimit = sanitizeBurst(params.burstLimit, rateLimitPerMin);
-    const scopes = params.scopes && params.scopes.length > 0 ? params.scopes : ['default'];
+    const monthlyCap = sanitizeMonthlyCap(params.monthlyCap);
+    const scopes =
+      params.scopes && params.scopes.length > 0 ? params.scopes : ['default'];
 
     const created = await this.prisma.apiKey.create({
       data: {
@@ -95,6 +111,8 @@ export class ApiKeyService implements OnModuleInit {
         hashedKey,
         rateLimitPerMin,
         burstLimit,
+        monthlyCap,
+        tokenPreview: this.formatTokenPreview(plaintext),
         scopeJSON: scopes,
       },
     });
@@ -116,12 +134,16 @@ export class ApiKeyService implements OnModuleInit {
       data: {
         hashedKey,
         lastUsedAt: null,
+        tokenPreview: this.formatTokenPreview(plaintext),
       },
     });
     return { key: this.toRecord(updated), plaintext };
   }
 
-  async updateKey(id: string, params: UpdateApiKeyParams): Promise<ApiKeyRecord> {
+  async updateKey(
+    id: string,
+    params: UpdateApiKeyParams,
+  ): Promise<ApiKeyRecord> {
     const data: Prisma.ApiKeyUpdateInput = {};
 
     if (params.name !== undefined) {
@@ -136,6 +158,9 @@ export class ApiKeyService implements OnModuleInit {
           ? sanitizeRate(params.rateLimitPerMin)
           : undefined;
       data.burstLimit = sanitizeBurst(params.burstLimit, rate);
+    }
+    if (params.monthlyCap !== undefined) {
+      data.monthlyCap = sanitizeMonthlyCap(params.monthlyCap);
     }
     if (params.scopes !== undefined) {
       data.scopeJSON = params.scopes;
@@ -166,7 +191,9 @@ export class ApiKeyService implements OnModuleInit {
         data: { lastUsedAt: new Date() },
       });
     } catch (error) {
-      this.logger.warn(`Failed to update lastUsedAt for key ${id}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to update lastUsedAt for key ${id}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -196,7 +223,10 @@ export class ApiKeyService implements OnModuleInit {
             tenantId: DEFAULT_TENANT_ID,
           },
           create: {
-            name: configuredKeys.length === 1 ? 'Bootstrap API Key' : `Bootstrap API Key ${index + 1}`,
+            name:
+              configuredKeys.length === 1
+                ? 'Bootstrap API Key'
+                : `Bootstrap API Key ${index + 1}`,
             hashedKey,
             isActive: true,
             scopeJSON: ['default'],
@@ -241,17 +271,20 @@ export class ApiKeyService implements OnModuleInit {
       isActive: entity.isActive,
       rateLimitPerMin: entity.rateLimitPerMin,
       burstLimit: entity.burstLimit,
+      monthlyCap: entity.monthlyCap,
+      tokenPreview: entity.tokenPreview ?? null,
       scopes: this.parseScopes(entity.scopeJSON),
     };
   }
 
   toAuthenticated(record: ApiKeyRecord): AuthenticatedApiKey {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { hashedKey, ...rest } = record;
     return rest;
   }
 
-  private parseScopes(value: Prisma.JsonValue | null | undefined): ApiKeyScopes {
+  private parseScopes(
+    value: Prisma.JsonValue | null | undefined,
+  ): ApiKeyScopes {
     if (!value) return ['default'];
     if (Array.isArray(value)) {
       return value
@@ -286,4 +319,15 @@ function sanitizeBurst(input: number | undefined, rate?: number): number {
     return Math.max(baseline, 1);
   }
   return Math.min(Math.floor(Math.max(value, 1)), 20_000);
+}
+
+function sanitizeMonthlyCap(input: number | undefined): number {
+  if (input === undefined || input === null) {
+    return 500_000;
+  }
+  const value = Number(input);
+  if (!Number.isFinite(value) || value <= 0) {
+    return 500_000;
+  }
+  return Math.min(Math.floor(value), 50_000_000);
 }

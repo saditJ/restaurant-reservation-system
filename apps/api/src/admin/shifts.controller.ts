@@ -146,13 +146,12 @@ export class AdminShiftsController {
   @Get()
   @ApiOperation({ summary: 'List shifts for a venue' })
   @ApiResponse({ status: 200, description: 'Returns shifts', type: Object })
-  async list(@Query() query: ShiftQueryDto): Promise<{ items: ShiftSummary[] }> {
+  async list(
+    @Query() query: ShiftQueryDto,
+  ): Promise<{ items: ShiftSummary[] }> {
     const shifts = await this.prisma.shift.findMany({
       where: { venueId: query.venueId },
-      orderBy: [
-        { dow: 'asc' },
-        { startsAtLocal: 'asc' },
-      ],
+      orderBy: [{ dow: 'asc' }, { startsAtLocal: 'asc' }],
     });
     return {
       items: shifts.map(formatShift),
@@ -188,8 +187,10 @@ export class AdminShiftsController {
     if (body.dow !== undefined) data.dow = body.dow;
     if (body.startsAt !== undefined) data.startsAtLocal = toTime(body.startsAt);
     if (body.endsAt !== undefined) data.endsAtLocal = toTime(body.endsAt);
-    if (body.capacitySeats !== undefined) data.capacitySeats = body.capacitySeats;
-    if (body.capacityCovers !== undefined) data.capacityCovers = body.capacityCovers;
+    if (body.capacitySeats !== undefined)
+      data.capacitySeats = body.capacitySeats;
+    if (body.capacityCovers !== undefined)
+      data.capacityCovers = body.capacityCovers;
     if (body.isActive !== undefined) data.isActive = body.isActive;
 
     const shift = await this.prisma.shift.update({

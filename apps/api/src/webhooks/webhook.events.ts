@@ -1,6 +1,14 @@
 import { WebhookEvent as PrismaWebhookEvent } from '@prisma/client';
 import { ReservationWebhookEvent } from './webhook.types';
 
+export const ALL_RESERVATION_EVENTS: ReservationWebhookEvent[] = [
+  'reservation.created',
+  'reservation.updated',
+  'reservation.cancelled',
+  'reservation.seated',
+  'reservation.completed',
+];
+
 export const RESERVATION_TO_PRISMA_EVENT: Record<
   ReservationWebhookEvent,
   PrismaWebhookEvent

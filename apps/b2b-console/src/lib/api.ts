@@ -258,3 +258,36 @@ export async function expireWaitlist(id: string) {
     `/waitlist/${encodeURIComponent(id)}/expire`,
   );
 }
+
+export function fetchFloorplan(venueId: string) {
+  return GET<import('./types').FloorplanResponse>(
+    `/venues/${encodeURIComponent(venueId)}/floorplan`,
+    { cache: 'no-store' },
+  );
+}
+
+export function saveFloorplan(
+  venueId: string,
+  body: {
+    room?: import('./types').FloorplanRoom;
+    tables: Array<
+      Pick<
+        import('./types').FloorplanTable,
+        'id' | 'name' | 'min' | 'max' | 'x' | 'y' | 'angle' | 'shape' | 'w' | 'h' | 'zone'
+      >
+    >;
+  },
+) {
+  return PUT<import('./types').FloorplanResponse>(
+    `/venues/${encodeURIComponent(venueId)}/floorplan`,
+    body,
+  );
+}
+
+export function fetchFloorplanOccupancy(venueId: string, at: string) {
+  const search = new URLSearchParams({ at });
+  return GET<import('./types').FloorplanOccupancy>(
+    `/venues/${encodeURIComponent(venueId)}/floorplan/occupancy?${search.toString()}`,
+    { cache: 'no-store' },
+  );
+}

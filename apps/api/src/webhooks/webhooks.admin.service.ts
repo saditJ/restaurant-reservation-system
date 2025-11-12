@@ -10,6 +10,7 @@ import {
   WebhookDeliveryStatus,
   WebhookEvent as PrismaWebhookEvent,
 } from '@prisma/client';
+import { randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma.service';
 import {
   ReservationWebhookEvent,
@@ -17,8 +18,13 @@ import {
   WebhookDeliveryListResponse,
   WebhookEndpointDto,
   WebhookPayload,
+  WebhookSecretPreview,
 } from './webhook.types';
-import { toReservationEvent } from './webhook.events';
+import {
+  ALL_RESERVATION_EVENTS,
+  toPrismaEvent,
+  toReservationEvent,
+} from './webhook.events';
 import { CreateWebhookEndpointDto } from './dto/create-webhook-endpoint.dto';
 
 type EndpointRecord = Prisma.WebhookEndpointGetPayload<{
@@ -34,6 +40,7 @@ type DeliveryFilters = {
   status?: WebhookDeliveryStatus;
   limit?: number;
   offset?: number;
+  page?: number;
 };
 
 @Injectable()
@@ -55,15 +62,26 @@ export class WebhooksAdminService {
         ? dto.description.trim()
         : null;
 
+    const events = this.normalizeEvents(dto.events);
+    const secret = this.generateSecret();
+    const timestamp = new Date();
+
     try {
       const endpoint = await this.prisma.webhookEndpoint.create({
         data: {
           url,
           description,
+          events,
+          secret,
+          secretCreatedAt: timestamp,
+          secretRotatedAt: timestamp,
         },
       });
       this.logger.log(`Created webhook endpoint ${endpoint.id} (${url})`);
-      return this.toEndpointDto(endpoint);
+      return {
+        ...this.toEndpointDto(endpoint),
+        secret,
+      };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -99,10 +117,19 @@ export class WebhooksAdminService {
       typeof filters.limit === 'number' && Number.isFinite(filters.limit)
         ? Math.max(1, Math.min(100, Math.floor(filters.limit)))
         : 25;
-    const skip =
+
+    let skip =
       typeof filters.offset === 'number' && Number.isFinite(filters.offset)
         ? Math.max(0, Math.floor(filters.offset))
         : 0;
+
+    if (
+      typeof filters.page === 'number' &&
+      Number.isFinite(filters.page) &&
+      filters.page > 0
+    ) {
+      skip = (Math.floor(filters.page) - 1) * take;
+    }
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.webhookDelivery.findMany({
@@ -134,6 +161,8 @@ export class WebhooksAdminService {
           status: WebhookDeliveryStatus.PENDING,
           attempts: 0,
           lastError: null,
+          failureReason: null,
+          failedAt: null,
           nextAttemptAt: new Date(),
           deliveredAt: null,
         },
@@ -152,14 +181,29 @@ export class WebhooksAdminService {
     return this.toDeliveryDto(delivery);
   }
 
+  async getSecretPreview(endpointId: string): Promise<WebhookSecretPreview> {
+    if (!endpointId) {
+      throw new BadRequestException('endpointId is required');
+    }
+    const endpoint = await this.prisma.webhookEndpoint.findUnique({
+      where: { id: endpointId },
+    });
+    if (!endpoint) {
+      throw new NotFoundException('Endpoint not found');
+    }
+    return this.buildSecretPreview(endpoint);
+  }
+
   private toEndpointDto(record: EndpointRecord): WebhookEndpointDto {
     return {
       id: record.id,
       url: record.url,
       description: record.description ?? null,
       isActive: record.isActive,
+      events: this.projectEvents(record),
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
+      secretPreview: this.buildSecretPreview(record),
     };
   }
 
@@ -173,9 +217,10 @@ export class WebhooksAdminService {
       attempts: record.attempts,
       lastError: record.lastError ?? null,
       nextAttemptAt: record.nextAttemptAt.toISOString(),
-      deliveredAt: record.deliveredAt
-        ? record.deliveredAt.toISOString()
-        : null,
+      lastAttemptAt: record.updatedAt.toISOString(),
+      deliveredAt: record.deliveredAt ? record.deliveredAt.toISOString() : null,
+      failureReason: record.failureReason ?? null,
+      failedAt: record.failedAt ? record.failedAt.toISOString() : null,
       createdAt: record.createdAt.toISOString(),
       updatedAt: record.updatedAt.toISOString(),
       payload,
@@ -230,5 +275,43 @@ export class WebhooksAdminService {
         venue: null,
       },
     };
+  }
+
+  private normalizeEvents(
+    events?: ReservationWebhookEvent[],
+  ): PrismaWebhookEvent[] {
+    const source =
+      Array.isArray(events) && events.length > 0
+        ? events
+        : ALL_RESERVATION_EVENTS;
+    const unique = Array.from(new Set(source));
+    return unique.map((event) => toPrismaEvent(event));
+  }
+
+  private projectEvents(record: EndpointRecord): ReservationWebhookEvent[] {
+    if (!record.events || record.events.length === 0) {
+      return [...ALL_RESERVATION_EVENTS];
+    }
+    return record.events.map((evt) => this.toReservationEvent(evt));
+  }
+
+  private buildSecretPreview(record: EndpointRecord): WebhookSecretPreview {
+    const secret = record.secret ?? '';
+    const lastFour =
+      secret.length >= 4 ? secret.slice(-4) : secret.padStart(4, '*');
+    return {
+      endpointId: record.id,
+      lastFour,
+      secretCreatedAt: (
+        record.secretCreatedAt ?? record.createdAt
+      ).toISOString(),
+      secretRotatedAt: record.secretRotatedAt
+        ? record.secretRotatedAt.toISOString()
+        : null,
+    };
+  }
+
+  private generateSecret(): string {
+    return randomBytes(32).toString('hex');
   }
 }

@@ -21,6 +21,7 @@ const FORWARD_HEADERS = new Set([
   'accept-encoding',
   'accept-language',
   'user-agent',
+  'idempotency-key',
 ]);
 
 async function proxy(req: NextRequest) {
@@ -54,6 +55,17 @@ async function proxy(req: NextRequest) {
     if (FORWARD_HEADERS.has(lower)) {
       headers.set(key, value);
     }
+  }
+
+  const forwardedHost =
+    req.headers.get('x-forwarded-host') ?? req.headers.get('host');
+  if (forwardedHost) {
+    headers.set('x-forwarded-host', forwardedHost.split(',')[0]);
+  }
+  const forwardedProto =
+    req.headers.get('x-forwarded-proto') ?? req.headers.get('next-url-proto');
+  if (forwardedProto) {
+    headers.set('x-forwarded-proto', forwardedProto);
   }
   headers.set('x-api-key', API_KEY);
   headers.set('x-client-app', 'booking-widget');

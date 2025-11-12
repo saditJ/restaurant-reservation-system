@@ -9,7 +9,7 @@ import {
   assignReservationTables,
   fetchSeatingSuggestions,
 } from '@/lib/api';
-import { formatRange, formatSlot } from '@/lib/time';
+import { formatRange, formatSlot, formatDateEU, formatTimeEU } from '@/lib/time';
 import type {
   Reservation,
   ReservationListResponse,
@@ -102,7 +102,28 @@ export default function ReservationsClient({
     () => Math.max(1, Math.floor(offset / (pageSize || DEFAULT_PAGE_SIZE)) + 1),
     [offset, pageSize],
   );
-  const visibleCount = data.items.length;
+
+  const displayedItems = useMemo(() => {
+    if (filter !== 'ACTIVE') return data.items;
+    
+    // ACTIVE = CONFIRMED or PENDING, with slot date/time now or in the future
+    const now = new Date();
+    return data.items.filter((item) => {
+      if (item.status !== 'CONFIRMED' && item.status !== 'PENDING') return false;
+      
+      // Parse the local date and time
+      try {
+        const [year, month, day] = item.slotLocalDate.split('-').map(Number);
+        const [hours, minutes] = item.slotLocalTime.split(':').map(Number);
+        const slotDate = new Date(year, month - 1, day, hours, minutes);
+        return slotDate >= now;
+      } catch {
+        return false;
+      }
+    });
+  }, [data.items, filter]);
+
+  const visibleCount = displayedItems.length;
   const startIndex = visibleCount > 0 ? offset + 1 : 0;
   const endIndex = visibleCount > 0 ? offset + visibleCount : 0;
 
@@ -219,6 +240,7 @@ useEffect(() => {
     () => Math.max(1, Math.ceil(data.total / pageSize)),
     [data.total, pageSize],
   );
+
   useEffect(() => {
     if (page > totalPages) {
       const next = totalPages;
@@ -687,7 +709,8 @@ useEffect(() => {
                 <th className="px-4 py-2 font-medium">Code</th>
                 <th className="px-4 py-2 font-medium">Guest</th>
                 <th className="px-4 py-2 font-medium">Contact</th>
-                <th className="px-4 py-2 font-medium">When</th>
+                <th className="px-4 py-2 font-medium">Date</th>
+                <th className="px-4 py-2 font-medium">Time</th>
                 <th className="px-4 py-2 font-medium text-right">Party</th>
                 <th className="px-4 py-2 font-medium">Table</th>
                 <th className="px-4 py-2 font-medium">Conflicts</th>
@@ -712,8 +735,10 @@ useEffect(() => {
                       <div className="h-4 w-24 rounded bg-gray-200" />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="h-4 w-32 rounded bg-gray-200" />
-                      <div className="mt-2 h-3 w-24 rounded bg-gray-100" />
+                      <div className="h-4 w-24 rounded bg-gray-200" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-4 w-16 rounded bg-gray-200" />
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="ml-auto h-4 w-10 rounded bg-gray-200" />
@@ -731,12 +756,12 @@ useEffect(() => {
                 ))}
               {!loading && data.items.length === 0 && (
                 <tr>
-                  <td className="px-4 py-6 text-center text-gray-500" colSpan={9}>
+                  <td className="px-4 py-6 text-center text-gray-500" colSpan={10}>
                     No reservations found.
                   </td>
                 </tr>
               )}
-              {data.items.map((row) => (
+              {displayedItems.map((row) => (
                 <tr key={row.id} className="border-t">
                   <td className="px-4 py-3">
                     <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs">
@@ -764,7 +789,10 @@ useEffect(() => {
                     {row.guestEmail && <div className="text-xs text-gray-500">{row.guestEmail}</div>}
                   </td>
                   <td className="px-4 py-3">
-                    <div>{formatSlot(row.slotLocalDate, row.slotLocalTime)}</div>
+                    <div>{formatDateEU(row.slotLocalDate)}</div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div>{formatTimeEU(row.slotLocalTime)}</div>
                     {row.durationMinutes > 0 && (
                       <div className="text-xs text-gray-500">
                         {formatRange(row.slotLocalDate, row.slotLocalTime, row.durationMinutes)}

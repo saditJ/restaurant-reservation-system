@@ -28,6 +28,7 @@ const translations = {
     'wizard.stepOf': 'Step {current} of {total}',
     'wizard.step.plan': 'Plan your visit',
     'wizard.step.details': 'Guest details',
+    'wizard.step.edit': 'Adjust visit',
     'wizard.step.review': 'Review & confirm',
     'wizard.next': 'Continue',
     'wizard.back': 'Back',
@@ -71,6 +72,14 @@ const translations = {
       'Send me updates about venue news and offers.',
     'details.submit': 'Continue to review',
     'details.hold.error': 'We could not create a hold. Pick another slot.',
+    'details.errors.name': 'Enter your full name.',
+    'details.errors.phone': 'Enter a valid phone number with at least 7 digits.',
+    'details.errors.email': 'Enter a valid email address.',
+
+    'edit.heading': 'Adjust your visit',
+    'edit.description':
+      'Need to change your party size or time? Update your choices and we will refresh availability.',
+    'edit.submit': 'Update availability',
 
     'review.heading': 'Review your reservation',
     'review.slot': '{date} at {time}',
@@ -87,6 +96,7 @@ const translations = {
     'review.guestFallback': 'Guest',
     'review.consents.marketing': 'Marketing updates',
     'review.consents.required': 'Required consent accepted',
+    'review.editAction': 'Edit party or date',
     'review.confirm': 'Confirm reservation',
     'review.confirming': 'Confirming...',
     'review.error':
@@ -95,6 +105,11 @@ const translations = {
     'review.success.code': 'Confirmation code',
     'review.success.manage': 'View or manage reservation',
     'review.success.another': 'Make another reservation',
+
+    'errors.conflict':
+      'That slot was just taken. Please pick another time.',
+    'errors.rateLimit':
+      'We are processing a lot of requests. Please wait a moment and try again.',
 
     'reservation.lookup.loading': 'Retrieving reservation...',
     'reservation.lookup.notFound':
@@ -168,6 +183,7 @@ const translations = {
     'wizard.stepOf': 'Hapi {current} nga {total}',
     'wizard.step.plan': 'Planifiko vizitën',
     'wizard.step.details': 'Detajet e mysafirit',
+    'wizard.step.edit': 'Rregullo vizit?n',
     'wizard.step.review': 'Rishiko & konfirmo',
     'wizard.next': 'Vazhdo',
     'wizard.back': 'Kthehu',
@@ -294,6 +310,16 @@ const translations = {
     'waitlist.success':
       'U shtuat në listë. Do t\'ju kontaktojmë sa më shpejt.',
     'waitlist.disabled': 'Lista e pritjes është e çaktivizuar për momentin.',
+    'details.errors.name': 'Shkruani emrin tuaj te plote.',
+    'details.errors.phone': 'Shkruani nje numer telefoni te vlefshem (te pakten 7 shifra).',
+    'details.errors.email': 'Shkruani nje adrese email te vlefshme.',
+    'edit.heading': 'Ndrysho viziten',
+    'edit.description': 'Ndryshoni numrin e personave ose orarin dhe ne do te rifreskojme disponueshmerine.',
+    'edit.submit': 'Perditeso disponueshmerine',
+    'review.editAction': 'Ndrysho numrin ose daten',
+    'errors.conflict': 'Ky interval u ze nga dikush tjeter. Zgjidhni nje orar tjeter.',
+    'errors.rateLimit': 'Ka shume kerkese tani. Prisni pak dhe provoni perseri.',
+
 
     'form.required': 'Kjo fushë është e detyrueshme.',
   },
@@ -390,3 +416,15 @@ export const localeOptions: Array<{ value: Locale; labelKey: TranslationKey }> =
   { value: 'en', labelKey: 'app.locale.en' },
   { value: 'al', labelKey: 'app.locale.al' },
 ];
+
+
+
+
+
+
+
+
+
+
+
+

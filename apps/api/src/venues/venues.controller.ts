@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiKeyGuard } from '../auth/api-key.guard';
+import { Public } from '../common/decorators/public.decorator';
 import { UpdateVenuePoliciesDto } from './dto/update-venue-policies.dto';
 import { UpdateVenueSettingsDto } from './dto/update-venue-settings.dto';
 import { VenuesService } from './venues.service';
@@ -32,6 +33,7 @@ type ApiRequest = Request & {
 export class VenuesController {
   constructor(private readonly venues: VenuesService) {}
 
+  @Public()
   @Get(':venueId/settings')
   getSettings(@Param('venueId') venueId: string) {
     return this.venues.getSettings(venueId);
@@ -47,6 +49,7 @@ export class VenuesController {
     return this.venues.updateSettings(venueId, body);
   }
 
+  @Public()
   @Get(':venueId/policies')
   getPolicies(@Param('venueId') venueId: string) {
     return this.venues.getPolicies(venueId);
@@ -60,11 +63,7 @@ export class VenuesController {
     @Body() body: UpdateVenuePoliciesDto,
     @Req() req: ApiRequest,
   ) {
-    return this.venues.updatePolicies(
-      venueId,
-      body,
-      formatActor(req.apiKey),
-    );
+    return this.venues.updatePolicies(venueId, body, formatActor(req.apiKey));
   }
 }
 
@@ -72,4 +71,3 @@ function formatActor(key: AuthenticatedApiKey | undefined): string {
   if (!key) return 'unknown';
   return `api-key:${key.id}`;
 }
-

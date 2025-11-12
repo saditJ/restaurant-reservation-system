@@ -4,9 +4,13 @@ type DateInput = Date | string;
 
 const ICS_LINE_LIMIT = 75;
 
-const pad = (value: number, length = 2) => value.toString().padStart(length, '0');
+const pad = (value: number, length = 2) =>
+  value.toString().padStart(length, '0');
 
-export function toZonedDateTime(input: DateInput, timeZone: string): Temporal.ZonedDateTime {
+export function toZonedDateTime(
+  input: DateInput,
+  timeZone: string,
+): Temporal.ZonedDateTime {
   const instant =
     input instanceof Date
       ? Temporal.Instant.from(input.toISOString())
@@ -54,7 +58,11 @@ function foldLine(line: string): string {
   }
 
   let result = line.slice(0, ICS_LINE_LIMIT);
-  for (let index = ICS_LINE_LIMIT; index < line.length; index += ICS_LINE_LIMIT) {
+  for (
+    let index = ICS_LINE_LIMIT;
+    index < line.length;
+    index += ICS_LINE_LIMIT
+  ) {
     result += `\r\n ${line.slice(index, index + ICS_LINE_LIMIT)}`;
   }
   return result;

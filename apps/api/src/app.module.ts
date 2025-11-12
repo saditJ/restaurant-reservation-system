@@ -30,6 +30,7 @@ import { RateLimitModule } from './rate-limit/rate-limit.module';
 import { ReservationsController } from './reservations.controller';
 import { ReservationsService } from './reservations.service';
 import { SeatingService } from './seating.service';
+import { ProviderModule } from './provider/provider.module';
 import { VenuesModule } from './venues/venues.module';
 import { WaitlistModule } from './waitlist/waitlist.module';
 import { requestContextMiddleware } from './common/request-context';
@@ -41,6 +42,12 @@ import { WebhooksAdminService } from './webhooks/webhooks.admin.service';
 import { WebhooksController } from './webhooks/webhooks.controller';
 import { WebhooksService } from './webhooks/webhooks.service';
 import { MarketModule } from './market/market.module';
+import { MenusModule } from './menus/menus.module';
+import { TenantsModule } from './tenants/tenants.module';
+import { HostTenantResolverMiddleware } from './common/middleware/host-tenant-resolver.middleware';
+import { SecurityModule } from './security/security.module';
+import { GuestReservationsController } from './guest/guest-reservations.controller';
+import { GuestReservationsService } from './guest/guest-reservations.service';
 
 @Module({
   imports: [
@@ -72,16 +79,18 @@ import { MarketModule } from './market/market.module';
           `failed with ${res.statusCode} response`,
         customProps: (req, res) => {
           const request = req as Request | undefined;
-          const response = res as (Response & { responseTime?: number }) | undefined;
+          const response = res as
+            | (Response & { responseTime?: number })
+            | undefined;
           const requestId = request
-            ? request.requestId ?? ensureRequestId(request, response)
+            ? (request.requestId ?? ensureRequestId(request, response))
             : undefined;
           const rawDurationMs =
             request && typeof request.responseDurationMs === 'number'
               ? request.responseDurationMs
               : response && typeof response?.responseTime === 'number'
-              ? response.responseTime
-              : undefined;
+                ? response.responseTime
+                : undefined;
           const durationMs =
             rawDurationMs !== undefined
               ? Math.max(Math.round(rawDurationMs), 0)
@@ -117,10 +126,15 @@ import { MarketModule } from './market/market.module';
     HoldsModule,
     WaitlistModule,
     MarketModule,
+    MenusModule,
+    ProviderModule,
+    TenantsModule,
+    SecurityModule,
   ],
   controllers: [
     AppController,
     ReservationsController,
+    GuestReservationsController,
     AvailabilityController,
     NotificationsController,
     WebhooksController,
@@ -143,6 +157,8 @@ import { MarketModule } from './market/market.module';
     WebhooksAdminService,
     HoldsCleanupService,
     PrivacyService,
+    GuestReservationsService,
+    HostTenantResolverMiddleware,
     { provide: APP_GUARD, useClass: ApiKeyGuard },
     { provide: APP_GUARD, useClass: TenantGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
@@ -151,6 +167,8 @@ import { MarketModule } from './market/market.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(requestContextMiddleware).forRoutes('*');
+    consumer
+      .apply(HostTenantResolverMiddleware, requestContextMiddleware)
+      .forRoutes('*');
   }
 }

@@ -9,6 +9,8 @@ import { ApiKeyGuard } from '../auth/api-key.guard';
 import { AdminApiGuard } from '../auth/admin-api.guard';
 import { AuditLogService } from './audit-log.service';
 
+const PAGE_SIZE = 50;
+
 @Controller('v1/audit')
 @UseGuards(ApiKeyGuard, AdminApiGuard)
 export class AuditController {
@@ -16,16 +18,13 @@ export class AuditController {
 
   @Get('logs')
   async list(
-    @Query('limit') limit = '50',
-    @Query('offset') offset = '0',
     @Query('actor') actor?: string,
-    @Query('action') action?: string,
-    @Query('resource') resource?: string,
+    @Query('route') route?: string,
     @Query('from') from?: string,
     @Query('to') to?: string,
+    @Query('page') page = '1',
   ) {
-    const parsedLimit = clampNumber(limit, 1, 200);
-    const parsedOffset = clampNumber(offset, 0, 10_000);
+    const parsedPage = clampNumber(page, 1, 4000);
     const rangeStart = parseDate(from);
     const rangeEnd = parseDate(to);
     if (rangeStart && rangeEnd && rangeStart > rangeEnd) {
@@ -33,18 +32,29 @@ export class AuditController {
     }
 
     const sanitizedActor = sanitize(actor);
-    const sanitizedAction = sanitize(action);
-    const sanitizedResource = sanitize(resource);
+    const sanitizedRoute = sanitize(route);
 
-    return this.audit.list({
-      limit: parsedLimit,
-      offset: parsedOffset,
+    const result = await this.audit.list({
+      limit: PAGE_SIZE,
+      offset: (parsedPage - 1) * PAGE_SIZE,
       actor: sanitizedActor,
-      action: sanitizedAction,
-      resource: sanitizedResource,
+      route: sanitizedRoute,
       from: rangeStart ?? undefined,
       to: rangeEnd ?? undefined,
     });
+
+    return {
+      total: result.total,
+      items: result.items.map((entry) => ({
+        ts: entry.createdAt.toISOString(),
+        actor: entry.actor,
+        route: entry.route ?? entry.resource ?? null,
+        method: entry.method ?? null,
+        status: entry.statusCode ?? null,
+        requestId: entry.requestId ?? null,
+        tenantId: entry.tenantId ?? null,
+      })),
+    };
   }
 }
 

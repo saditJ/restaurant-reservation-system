@@ -1,8 +1,8 @@
-import { IsArray, ArrayNotEmpty, IsUUID } from 'class-validator';
+import { IsArray, ArrayNotEmpty, IsString } from 'class-validator';
 
 export class AssignReservationTablesDto {
   @IsArray()
   @ArrayNotEmpty()
-  @IsUUID('all', { each: true })
+  @IsString({ each: true })
   tableIds!: string[];
 }

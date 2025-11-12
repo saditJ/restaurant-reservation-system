@@ -43,6 +43,8 @@ type ApiKeySummary = {
   lastUsedAt: string | null;
   rateLimitPerMin: number;
   burstLimit: number;
+  monthlyCap: number;
+  tokenPreview: string | null;
   scopes: string[];
   usage: {
     allows24h: number;
@@ -80,6 +82,13 @@ class CreateApiKeyDto {
   burstLimit?: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  @Max(50_000_000)
+  monthlyCap?: number;
+
+  @IsOptional()
   @IsArray()
   @IsString({ each: true })
   scopes?: string[];
@@ -104,6 +113,13 @@ class UpdateApiKeyDto {
   @IsPositive()
   @Max(200_000)
   burstLimit?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @IsPositive()
+  @Max(50_000_000)
+  monthlyCap?: number;
 
   @IsOptional()
   @IsArray()
@@ -141,6 +157,7 @@ export class ApiKeysController {
       name: body.name,
       rateLimitPerMin: body.rateLimitPerMin,
       burstLimit: body.burstLimit,
+      monthlyCap: body.monthlyCap,
       scopes: body.scopes ?? undefined,
     };
     const result = await this.apiKeys.createKey(params);
@@ -175,8 +192,10 @@ export class ApiKeysController {
   ): Promise<{ key: ApiKeySummary }> {
     const params: UpdateApiKeyParams = {};
     if (body.name !== undefined) params.name = body.name;
-    if (body.rateLimitPerMin !== undefined) params.rateLimitPerMin = body.rateLimitPerMin;
+    if (body.rateLimitPerMin !== undefined)
+      params.rateLimitPerMin = body.rateLimitPerMin;
     if (body.burstLimit !== undefined) params.burstLimit = body.burstLimit;
+    if (body.monthlyCap !== undefined) params.monthlyCap = body.monthlyCap;
     if (body.scopes !== undefined) params.scopes = body.scopes;
     if (body.isActive !== undefined) params.isActive = body.isActive;
 
@@ -193,13 +212,18 @@ export class ApiKeysController {
       tenantId: record.tenantId,
       name: record.name,
       isActive: record.isActive,
-      createdAt: record.createdAt instanceof Date ? record.createdAt.toISOString() : record.createdAt,
+      createdAt:
+        record.createdAt instanceof Date
+          ? record.createdAt.toISOString()
+          : record.createdAt,
       lastUsedAt:
         record.lastUsedAt instanceof Date
           ? record.lastUsedAt.toISOString()
-          : record.lastUsedAt ?? null,
+          : (record.lastUsedAt ?? null),
       rateLimitPerMin: record.rateLimitPerMin,
       burstLimit: record.burstLimit,
+      monthlyCap: record.monthlyCap,
+      tokenPreview: record.tokenPreview ?? null,
       scopes: [...record.scopes],
       usage: {
         allows24h: usage?.allows24h ?? 0,

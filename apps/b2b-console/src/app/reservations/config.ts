@@ -12,6 +12,7 @@ export const STATUSES = [
 
 export const STATUS_FILTERS = [
   'ALL',
+  'ACTIVE',
   ...STATUSES,
 ] as const;
 

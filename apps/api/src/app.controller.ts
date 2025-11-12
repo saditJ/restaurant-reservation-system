@@ -1,4 +1,9 @@
-import { Controller, Get, Req, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Req,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { PrismaService } from './prisma.service';
 import { Public } from './common/decorators/public.decorator';
@@ -63,7 +68,7 @@ export class AppController {
   async getLimits(@Req() req: Request & { apiKeyId?: string }) {
     const apiKeyId = req.apiKeyId;
     if (!apiKeyId) {
-      return { 
+      return {
         error: 'API key not found in request',
       };
     }

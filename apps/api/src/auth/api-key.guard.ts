@@ -31,8 +31,8 @@ export class ApiKeyGuard implements CanActivate {
       typeof rawHeader === 'string'
         ? rawHeader.trim()
         : Array.isArray(rawHeader)
-        ? rawHeader[0]?.trim()
-        : undefined;
+          ? rawHeader[0]?.trim()
+          : undefined;
 
     if (!plaintext) {
       throw new UnauthorizedException('Missing API key');
@@ -50,9 +50,25 @@ export class ApiKeyGuard implements CanActivate {
     request.apiKey = authenticated;
     request.apiKeyId = record.id;
     request.tenantId = record.tenantId;
-    request.actor = { kind: 'service', roles: ['integration'] };
+    request.actor = {
+      kind: 'service',
+      roles: scopesToRoles(authenticated.scopes),
+    };
     void this.apiKeys.touchLastUsed(record.id);
 
     return true;
   }
+}
+
+function scopesToRoles(scopes: string[]): string[] {
+  const roles = new Set<string>(['integration']);
+  for (const scope of scopes) {
+    if (scope === 'admin') {
+      roles.add('admin');
+    }
+    if (scope === 'provider') {
+      roles.add('provider');
+    }
+  }
+  return Array.from(roles);
 }

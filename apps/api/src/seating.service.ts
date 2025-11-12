@@ -121,16 +121,12 @@ export class SeatingService {
       };
     }
 
-    const usage = await this.countTableUsage(
-      reservation,
-      reservationId,
-    );
+    const usage = await this.countTableUsage(reservation, reservationId);
 
     const availability = await this.computeAvailability(reservation, tables);
 
     const availableSingles = availability.filter(
-      (entry) =>
-        entry.available && entry.table.capacity >= partySize,
+      (entry) => entry.available && entry.table.capacity >= partySize,
     );
 
     const candidates: SeatingSuggestion[] = [];
@@ -143,11 +139,7 @@ export class SeatingService {
       candidates.push(this.buildSuggestion(reservation, [tableEntry], usage));
     }
 
-    const combos = this.buildJoinGroupCombos(
-      reservation,
-      availability,
-      usage,
-    );
+    const combos = this.buildJoinGroupCombos(reservation, availability, usage);
     candidates.push(...combos);
 
     const sorted = candidates
@@ -212,7 +204,9 @@ export class SeatingService {
     });
 
     if (tables.length !== normalized.length) {
-      throw new BadRequestException('One or more tables do not belong to venue');
+      throw new BadRequestException(
+        'One or more tables do not belong to venue',
+      );
     }
 
     if (normalized.length > 1) {
@@ -269,7 +263,9 @@ export class SeatingService {
         });
 
         if (hasSlotConflicts(conflicts)) {
-          throw new ConflictException('Requested tables are no longer available');
+          throw new ConflictException(
+            'Requested tables are no longer available',
+          );
         }
 
         await tx.reservation.update({
@@ -279,11 +275,7 @@ export class SeatingService {
           },
         });
 
-        await syncReservationTableAssignments(
-          tx,
-          reservationId,
-          normalized,
-        );
+        await syncReservationTableAssignments(tx, reservationId, normalized);
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -396,9 +388,7 @@ export class SeatingService {
     if (tables.length === 1) {
       const [table] = tables;
       const spare =
-        excessCapacity === 0
-          ? 'exact fit'
-          : `+${excessCapacity} spare`;
+        excessCapacity === 0 ? 'exact fit' : `+${excessCapacity} spare`;
       return `Table ${table.label ?? table.tableId} (capacity ${table.capacity}, used ${table.wear}x today) for party of ${partySize} (${spare}).`;
     }
     const summary = tables
@@ -408,9 +398,7 @@ export class SeatingService {
       )
       .join(' + ');
     const spare =
-      excessCapacity === 0
-        ? 'exact fit'
-        : `+${excessCapacity} spare`;
+      excessCapacity === 0 ? 'exact fit' : `+${excessCapacity} spare`;
     return `Joined tables ${summary} cover party of ${partySize} (${spare}).`;
   }
 
@@ -443,10 +431,7 @@ export class SeatingService {
           b.table.label ?? b.table.id,
         );
       });
-      const combos = this.findMinimalCombos(
-        sorted,
-        reservation.partySize,
-      );
+      const combos = this.findMinimalCombos(sorted, reservation.partySize);
       for (const combo of combos) {
         results.push(this.buildSuggestion(reservation, combo, usage));
       }
@@ -462,10 +447,8 @@ export class SeatingService {
     for (let size = 2; size <= tables.length; size += 1) {
       const combos = this.combinationsOfSize(tables, size).filter(
         (combo) =>
-          combo.reduce(
-            (sum, entry) => sum + entry.table.capacity,
-            0,
-          ) >= partySize,
+          combo.reduce((sum, entry) => sum + entry.table.capacity, 0) >=
+          partySize,
       );
       if (combos.length > 0) {
         results.push(...combos);
@@ -482,10 +465,7 @@ export class SeatingService {
     const results: T[][] = [];
     for (let i = 0; i <= items.length - size; i += 1) {
       const head = items[i];
-      const tailCombos = this.combinationsOfSize(
-        items.slice(i + 1),
-        size - 1,
-      );
+      const tailCombos = this.combinationsOfSize(items.slice(i + 1), size - 1);
       for (const tail of tailCombos) {
         results.push([head, ...tail]);
       }
@@ -557,8 +537,3 @@ export class SeatingService {
     return `${venueId}::${tableId ?? 'ANY'}::${date}::${time}`;
   }
 }
-
-
-
-
-

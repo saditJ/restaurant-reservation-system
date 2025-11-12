@@ -1,5 +1,8 @@
 import { Temporal } from '@js-temporal/polyfill';
-import { AvailabilityPolicyService, generatePolicySlots } from './policy.service';
+import {
+  AvailabilityPolicyService,
+  generatePolicySlots,
+} from './policy.service';
 
 const TIMEZONE = 'Europe/Tirane';
 
@@ -70,9 +73,7 @@ describe('AvailabilityPolicyService helpers', () => {
     expect(secondHourSlots).toHaveLength(2);
 
     const [firstOccurrence, secondOccurrence] = secondHourSlots;
-    expect(
-      firstOccurrence.start.toInstant().epochMilliseconds,
-    ).toBeLessThan(
+    expect(firstOccurrence.start.toInstant().epochMilliseconds).toBeLessThan(
       secondOccurrence.start.toInstant().epochMilliseconds,
     );
   });
@@ -136,7 +137,10 @@ describe('AvailabilityPolicyService', () => {
       },
     });
 
-    const service = new AvailabilityPolicyService(prisma as any, metrics as any);
+    const service = new AvailabilityPolicyService(
+      prisma as any,
+      metrics as any,
+    );
     const result = await service.evaluateDay({
       venueId: 'venue-1',
       date: '2025-12-31',

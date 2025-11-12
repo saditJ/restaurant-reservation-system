@@ -41,7 +41,12 @@ describe('MetricsController', () => {
     const result = await controller.getMetrics(res);
 
     expect(prisma.$transaction).toHaveBeenCalled();
-    expect(res.setHeader).toHaveBeenCalledWith('Content-Type', service.getContentType());
-    expect(result).toEqual(expect.stringContaining('http_request_duration_seconds'));
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Content-Type',
+      service.getContentType(),
+    );
+    expect(result).toEqual(
+      expect.stringContaining('http_request_duration_seconds'),
+    );
   });
 });

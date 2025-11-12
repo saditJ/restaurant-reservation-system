@@ -97,9 +97,8 @@ export class WaitlistService {
     const partySize = this.normalizePartySize(dto.partySize);
     const priority = this.normalizePriority(dto.priority);
     const email = encryptPii(dto.email);
-    const phoneEnc = dto.phone && dto.phone.trim().length > 0
-      ? encryptPii(dto.phone)
-      : null;
+    const phoneEnc =
+      dto.phone && dto.phone.trim().length > 0 ? encryptPii(dto.phone) : null;
 
     const created = await this.prisma.waitlist.create({
       data: {
@@ -118,7 +117,9 @@ export class WaitlistService {
     return this.toAdminDto(created);
   }
 
-  async list(query: ListWaitlistQueryDto): Promise<{ items: WaitlistAdminDto[]; total: number }> {
+  async list(
+    query: ListWaitlistQueryDto,
+  ): Promise<{ items: WaitlistAdminDto[]; total: number }> {
     const where: Prisma.WaitlistWhereInput = {};
     if (query.venueId?.trim()) {
       where.venueId = query.venueId.trim();
@@ -129,10 +130,14 @@ export class WaitlistService {
     if (query.desiredFrom || query.desiredTo) {
       where.desiredAt = {};
       if (query.desiredFrom) {
-        (where.desiredAt as Prisma.DateTimeFilter).gte = new Date(query.desiredFrom);
+        (where.desiredAt as Prisma.DateTimeFilter).gte = new Date(
+          query.desiredFrom,
+        );
       }
       if (query.desiredTo) {
-        (where.desiredAt as Prisma.DateTimeFilter).lte = new Date(query.desiredTo);
+        (where.desiredAt as Prisma.DateTimeFilter).lte = new Date(
+          query.desiredTo,
+        );
       }
     }
 
@@ -177,7 +182,12 @@ export class WaitlistService {
     const ttlMinutes = this.normalizeTtl(dto.ttlMinutes);
     const { date, time } = this.toLocalSlot(slotStart, entry.venue.timezone);
 
-    const tableId = await this.pickTable(entry.venueId, date, time, entry.partySize);
+    const tableId = await this.pickTable(
+      entry.venueId,
+      date,
+      time,
+      entry.partySize,
+    );
     if (!tableId) {
       throw new ConflictException('No tables available for the requested slot');
     }
@@ -383,8 +393,7 @@ export class WaitlistService {
 
     return logs.map<WaitlistOfferSummary>((log) => {
       const payload = this.coerceJsonObject(log.after);
-      const waitlistId =
-        this.extractString(payload, 'waitlistId') ?? undefined;
+      const waitlistId = this.extractString(payload, 'waitlistId') ?? undefined;
       const holdId = this.extractString(payload, 'holdId');
       const offerCode = this.extractString(payload, 'offerCode');
       const guestEmail = this.extractString(payload, 'guestEmail');
@@ -444,7 +453,9 @@ export class WaitlistService {
           include: this.waitlistInclude,
         });
         if (!updated) {
-          throw new NotFoundException('Waitlist entry missing after offer update');
+          throw new NotFoundException(
+            'Waitlist entry missing after offer update',
+          );
         }
         return { waitlist: updated };
       } catch (error) {
@@ -594,7 +605,10 @@ export class WaitlistService {
     return Math.max(MIN_TTL_MINUTES, Math.min(MAX_TTL_MINUTES, minutes));
   }
 
-  private toLocalSlot(date: Date, timeZone: string): { date: string; time: string } {
+  private toLocalSlot(
+    date: Date,
+    timeZone: string,
+  ): { date: string; time: string } {
     const formatter = new Intl.DateTimeFormat('en-CA', {
       timeZone,
       year: 'numeric',
@@ -605,7 +619,9 @@ export class WaitlistService {
       hour12: false,
     });
     const parts = formatter.formatToParts(date);
-    const lookup = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    const lookup = Object.fromEntries(
+      parts.map((part) => [part.type, part.value]),
+    );
     const localDate = `${lookup.year}-${lookup.month}-${lookup.day}`;
     const localTime = `${lookup.hour}:${lookup.minute}`;
     return { date: localDate, time: localTime };
@@ -627,7 +643,9 @@ export class WaitlistService {
       if (!availability.tables.length) {
         return null;
       }
-      const sorted = [...availability.tables].sort((a, b) => a.capacity - b.capacity);
+      const sorted = [...availability.tables].sort(
+        (a, b) => a.capacity - b.capacity,
+      );
       return sorted[0]?.id ?? null;
     } catch (error) {
       this.logger.warn(
@@ -642,7 +660,9 @@ export class WaitlistService {
     if (requested === DEFAULT_VENUE_ID) {
       return ensureDefaultVenue(this.prisma);
     }
-    const venue = await this.prisma.venue.findUnique({ where: { id: requested } });
+    const venue = await this.prisma.venue.findUnique({
+      where: { id: requested },
+    });
     if (!venue) {
       throw new NotFoundException('Venue not found');
     }

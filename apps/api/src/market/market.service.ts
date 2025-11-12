@@ -1,4 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import {
   VenueSearchDto,
@@ -11,65 +13,62 @@ import {
   ReviewDto,
 } from './dto/venue-detail.dto';
 import { SearchSuggestResponseDto } from './dto/search.dto';
+import {
+  VenueFacetsDto,
+  VenueFacetResponseDto,
+  VenueFacetBucket,
+} from './dto/venue-facets.dto';
 import { addDays, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
+import { MenusService } from '../menus/menus.service';
+import { CacheService } from '../cache/cache.service';
+
+const VENUE_LIST_CACHE_TTL_SECONDS = 60;
+const FACET_RESULT_LIMIT = 24;
+
+type SortOption = 'rating' | 'price-asc' | 'price-desc' | 'name' | 'recent';
+
+type NormalizedVenueFilters = {
+  query?: string;
+  city: string[];
+  cuisine: string[];
+  priceLevel: number[];
+  tag?: string;
+  sort: SortOption;
+  page: number;
+  pageSize: number;
+  minRating?: number;
+};
+
+type NormalizeOptions = {
+  skipPagination?: boolean;
+};
 
 @Injectable()
 export class MarketService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly menus: MenusService,
+    private readonly cache: CacheService,
+  ) {}
 
   async searchVenues(dto: VenueSearchDto): Promise<VenueListResponseDto> {
-    const page = dto.page || 1;
-    const pageSize = dto.pageSize || 24;
-    const skip = (page - 1) * pageSize;
-
-    // Build where clause
-    const where: any = {
-      isPublic: true,
-    };
-
-    if (dto.query) {
-      where.OR = [
-        { name: { contains: dto.query, mode: 'insensitive' } },
-        { cuisines: { has: dto.query } },
-        { tags: { has: dto.query } },
-        { description: { contains: dto.query, mode: 'insensitive' } },
-      ];
+    const filters = this.normalizeFilters(dto);
+    const cacheKey = this.buildSearchCacheKey(filters);
+    const cached = await this.cache.get<VenueListResponseDto>(cacheKey);
+    if (cached.status === 'hit' && cached.value) {
+      return cached.value;
     }
 
-    if (dto.city) {
-      where.city = { equals: dto.city, mode: 'insensitive' };
-    }
+    const skip = (filters.page - 1) * filters.pageSize;
+    const where = this.buildWhere(filters);
+    const orderBy = this.resolveOrderBy(filters.sort);
 
-    if (dto.cuisine) {
-      where.cuisines = { has: dto.cuisine };
-    }
-
-    if (dto.priceLevel) {
-      where.priceLevel = dto.priceLevel;
-    }
-
-    if (dto.tag) {
-      where.tags = { has: dto.tag };
-    }
-
-    // Build orderBy
-    let orderBy: any = {};
-    if (dto.sortBy === 'priceAsc') {
-      orderBy = { priceLevel: 'asc' };
-    } else if (dto.sortBy === 'priceDesc') {
-      orderBy = { priceLevel: 'desc' };
-    } else {
-      orderBy = { createdAt: 'desc' }; // default
-    }
-
-    // Execute query with aggregations
-    // Use untyped results to avoid strict generated Prisma types for dynamic selects
-    const results = await Promise.all([
+    const [venues, total] = await Promise.all([
       this.prisma.venue.findMany({
         where,
         skip,
-        take: pageSize,
+        take: filters.pageSize,
         orderBy,
         select: {
           id: true,
@@ -97,19 +96,17 @@ export class MarketService {
       }),
       this.prisma.venue.count({ where }),
     ]);
-    const venues = results[0] as any[];
-    const total = results[1] as number;
+    const venuesRaw = venues as any[];
 
-    // Calculate ratings and get next available slots
     const items: VenueListItemDto[] = await Promise.all(
-      venues.map(async (venue: any) => {
-        const reviewCount = (venue._count && (venue._count as any).reviews) || 0;
+      venuesRaw.map(async (venue: any) => {
+        const reviewCount = (venue._count && venue._count.reviews) || 0;
         const rating =
           reviewCount > 0 && Array.isArray(venue.reviews)
-            ? (venue.reviews as any[]).reduce((sum, r) => sum + r.rating, 0) / reviewCount
+            ? (venue.reviews as any[]).reduce((sum, r) => sum + r.rating, 0) /
+              reviewCount
             : null;
 
-        // Get next available slot (simplified - just check if there's a shift today/tomorrow)
         let nextAvailable: string | null = null;
         try {
           const now = new Date();
@@ -122,12 +119,11 @@ export class MarketService {
           });
 
           if (shifts) {
-            // Simple heuristic: if venue has shifts, show tomorrow at shift start
             const tomorrow = addDays(now, 1);
             nextAvailable = tomorrow.toISOString();
           }
-        } catch (err) {
-          // Ignore errors for next available
+        } catch {
+          // Ignore errors for availability hints
         }
 
         return {
@@ -142,34 +138,106 @@ export class MarketService {
           reviewCount,
           tags: venue.tags,
           shortDescription: venue.description
-            ? venue.description.substring(0, 150) + '...'
+            ? `${venue.description.substring(0, 150)}${venue.description.length > 150 ? '…' : ''}`
             : null,
           nextAvailable,
         };
       }),
     );
 
-    // Apply rating filter after aggregation
-    let filteredItems = items;
-    if (dto.minRating) {
-      filteredItems = items.filter(
-        (item) => item.rating !== null && item.rating >= dto.minRating!,
-      );
-    }
+    const filteredItems =
+      typeof filters.minRating === 'number'
+        ? items.filter(
+            (item) => item.rating !== null && item.rating >= filters.minRating!,
+          )
+        : items;
 
-    // Apply sorting for popular/rating
-    if (dto.sortBy === 'popular') {
-      filteredItems.sort((a, b) => b.reviewCount - a.reviewCount);
-    } else if (dto.sortBy === 'rating') {
-      filteredItems.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-    }
-
-    return {
+    const response: VenueListResponseDto = {
       items: filteredItems,
       total,
-      page,
-      pageSize,
-      totalPages: Math.ceil(total / pageSize),
+      page: filters.page,
+      pageSize: filters.pageSize,
+      totalPages: Math.ceil(total / filters.pageSize),
+    };
+
+    await this.cache.set(cacheKey, response, {
+      ttlSeconds: VENUE_LIST_CACHE_TTL_SECONDS,
+    });
+
+    return response;
+  }
+
+  async getVenueFacets(dto: VenueFacetsDto): Promise<VenueFacetResponseDto> {
+    const filters = this.normalizeFilters(dto as Partial<VenueSearchDto>, {
+      skipPagination: true,
+    });
+    const baseClauses = this.buildSqlClauses(filters);
+
+    const cityRows = await this.prisma.$queryRaw<VenueFacetBucket[]>(
+      Prisma.sql`
+        SELECT "city" AS value, COUNT(*)::int AS count
+        FROM "Venue"
+        ${this.composeWhere([
+          ...baseClauses,
+          Prisma.sql`"city" IS NOT NULL AND "city" <> ''`,
+        ])}
+        GROUP BY "city"
+        ORDER BY count DESC, value ASC
+        LIMIT ${FACET_RESULT_LIMIT}
+      `,
+    );
+
+    const cuisineRows = await this.prisma.$queryRaw<VenueFacetBucket[]>(
+      Prisma.sql`
+        WITH filtered AS (
+          SELECT "cuisines"
+          FROM "Venue"
+          ${this.composeWhere(baseClauses)}
+        )
+        SELECT value, COUNT(*)::int AS count
+        FROM (
+          SELECT unnest("cuisines") AS value
+          FROM filtered
+        ) expanded
+        WHERE value IS NOT NULL AND value <> ''
+        GROUP BY value
+        ORDER BY count DESC, value ASC
+        LIMIT ${FACET_RESULT_LIMIT}
+      `,
+    );
+
+    const priceRows = await this.prisma.$queryRaw<
+      Array<{ value: number; count: number }>
+    >(
+      Prisma.sql`
+        SELECT "priceLevel" AS value, COUNT(*)::int AS count
+        FROM "Venue"
+        ${this.composeWhere([
+          ...baseClauses,
+          Prisma.sql`"priceLevel" IS NOT NULL`,
+        ])}
+        GROUP BY "priceLevel"
+        ORDER BY value ASC
+      `,
+    );
+
+    return {
+      city: cityRows
+        .map((row) => ({
+          value: row.value?.trim() ?? '',
+          count: Number(row.count) || 0,
+        }))
+        .filter((bucket) => bucket.value.length > 0),
+      cuisine: cuisineRows
+        .map((row) => ({
+          value: row.value?.trim() ?? '',
+          count: Number(row.count) || 0,
+        }))
+        .filter((bucket) => bucket.value.length > 0),
+      priceLevel: priceRows.map((row) => ({
+        value: Number(row.value),
+        count: Number(row.count) || 0,
+      })),
     };
   }
 
@@ -181,24 +249,6 @@ export class MarketService {
       include: {
         tenant: {
           select: { id: true },
-        },
-        menus: {
-          where: { isActive: true },
-          include: {
-            sections: {
-              include: {
-                items: {
-                  where: { isAvailable: true },
-                  take: 6,
-                  orderBy: { displayOrder: 'asc' },
-                },
-              },
-              orderBy: { displayOrder: 'asc' },
-              take: 3,
-            },
-          },
-          orderBy: { displayOrder: 'asc' },
-          take: 1,
         },
         reviews: {
           where: { isPublished: true },
@@ -229,23 +279,13 @@ export class MarketService {
     const reviewCount = Array.isArray(venue.reviews) ? venue.reviews.length : 0;
     const rating =
       reviewCount > 0 && Array.isArray(venue.reviews)
-        ? (venue.reviews as any[]).reduce((sum, r) => sum + r.rating, 0) / reviewCount
+        ? (venue.reviews as any[]).reduce((sum, r) => sum + r.rating, 0) /
+          reviewCount
         : null;
 
-    // Build menu summary
-    const menuSummary: MenuSummaryDto = {
-      sections:
-        (venue.menus && venue.menus[0]?.sections?.map((section: any) => ({
-          title: section.title,
-          items: section.items.map((item: any) => ({
-            id: item.id,
-            name: item.name,
-            price: parseFloat(item.price.toString()),
-            currency: item.currency,
-            description: item.description,
-          })),
-        })) as any) || [],
-    };
+    const menuSummary: MenuSummaryDto = await this.menus.getPublicMenu(
+      venue.id,
+    );
 
     // Get next available slots (simplified)
     const nextAvailableSlots = await this.getNextAvailableSlots(
@@ -353,6 +393,236 @@ export class MarketService {
     const uniqueSuggestions = Array.from(new Set(suggestions)).slice(0, limit);
 
     return { suggestions: uniqueSuggestions };
+  }
+
+  private buildWhere(filters: NormalizedVenueFilters): Prisma.VenueWhereInput {
+    const where: Prisma.VenueWhereInput = { isPublic: true };
+    if (filters.query) {
+      where.OR = [
+        { name: { contains: filters.query, mode: 'insensitive' } },
+        { cuisines: { has: filters.query } },
+        { tags: { has: filters.query } },
+        { description: { contains: filters.query, mode: 'insensitive' } },
+      ];
+    }
+
+    const andFilters: Prisma.VenueWhereInput[] = [];
+    if (filters.city.length) {
+      andFilters.push({
+        OR: filters.city.map((value) => ({
+          city: { equals: value, mode: 'insensitive' },
+        })),
+      });
+    }
+    if (filters.cuisine.length) {
+      andFilters.push({
+        OR: filters.cuisine.map((value) => ({
+          cuisines: { has: value },
+        })),
+      });
+    }
+    if (filters.priceLevel.length) {
+      andFilters.push({
+        priceLevel: { in: filters.priceLevel },
+      });
+    }
+    if (filters.tag) {
+      andFilters.push({ tags: { has: filters.tag } });
+    }
+    if (andFilters.length > 0) {
+      where.AND = andFilters;
+    }
+    return where;
+  }
+
+  private resolveOrderBy(
+    sort: SortOption,
+  ): Prisma.VenueOrderByWithRelationInput[] {
+    switch (sort) {
+      case 'price-asc':
+        return [{ priceLevel: 'asc' }, { name: 'asc' }];
+      case 'price-desc':
+        return [{ priceLevel: 'desc' }, { name: 'asc' }];
+      case 'name':
+        return [{ name: 'asc' }];
+      case 'recent':
+        return [{ createdAt: 'desc' }];
+      case 'rating':
+      default:
+        return [
+        {
+          reviews: {
+            _count: 'desc',
+          },
+        },
+          { createdAt: 'desc' },
+        ];
+    }
+  }
+
+  private normalizeFilters(
+    dto: Partial<VenueSearchDto>,
+    options: NormalizeOptions = {},
+  ): NormalizedVenueFilters {
+    const pageInput = Number(dto.page);
+    const sizeInput = Number(dto.pageSize);
+    const page = options.skipPagination
+      ? 1
+      : Number.isFinite(pageInput) && pageInput > 0
+        ? Math.floor(pageInput)
+        : 1;
+    const pageSize = options.skipPagination
+      ? 24
+      : Number.isFinite(sizeInput) && sizeInput > 0
+        ? Math.min(Math.floor(sizeInput), 100)
+        : 24;
+
+    const query = dto.query?.trim();
+    const tag = dto.tag?.trim();
+    const minRating =
+      typeof dto.minRating === 'number' && Number.isFinite(dto.minRating)
+        ? Math.max(1, Math.min(5, dto.minRating))
+        : undefined;
+
+    return {
+      query: query || undefined,
+      city: this.normalizeStringArray(dto.city),
+      cuisine: this.normalizeStringArray(dto.cuisine),
+      priceLevel: this.normalizeNumberArray(dto.priceLevel),
+      tag: tag || undefined,
+      sort: options.skipPagination
+        ? 'rating'
+        : this.normalizeSort(dto.sort ?? dto.sortBy),
+      page,
+      pageSize,
+      minRating,
+    };
+  }
+
+  private normalizeStringArray(values?: string[] | string | null): string[] {
+    if (!values) return [];
+    const arr = Array.isArray(values) ? values : [values];
+    const normalized = arr
+      .map((value) => (value ?? '').toString().trim())
+      .filter((value) => value.length > 0);
+    const map = new Map<string, string>();
+    for (const value of normalized) {
+      const key = value.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, value);
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      a.localeCompare(b, undefined, { sensitivity: 'base' }),
+    );
+  }
+
+  private normalizeNumberArray(values?: number[] | number | null): number[] {
+    if (values === undefined || values === null) return [];
+    const arr = Array.isArray(values) ? values : [values];
+    const normalized = arr
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.max(1, Math.min(4, Math.floor(value))));
+    return Array.from(new Set(normalized)).sort((a, b) => a - b);
+  }
+
+  private normalizeSort(value?: string): SortOption {
+    if (!value) return 'rating';
+    const normalized = value.toLowerCase();
+    if (normalized === 'price' || normalized === 'priceasc') return 'price-asc';
+    if (normalized === 'pricedesc' || normalized === 'price-desc')
+      return 'price-desc';
+    if (normalized === 'name') return 'name';
+    if (normalized === 'recent') return 'recent';
+    if (normalized === 'rating' || normalized === 'popular') return 'rating';
+    return 'rating';
+  }
+
+  private buildSearchCacheKey(filters: NormalizedVenueFilters): string {
+    const payload = JSON.stringify({
+      q: filters.query ?? null,
+      city: filters.city,
+      cuisine: filters.cuisine,
+      price: filters.priceLevel,
+      tag: filters.tag ?? null,
+      sort: filters.sort,
+      page: filters.page,
+      size: filters.pageSize,
+      minRating: filters.minRating ?? null,
+    });
+    return `market:venues:${createHash('sha1').update(payload).digest('hex')}`;
+  }
+
+  private buildSqlClauses(filters: NormalizedVenueFilters): Prisma.Sql[] {
+    const clauses: Prisma.Sql[] = [Prisma.sql`"isPublic" = true`];
+
+    if (filters.query) {
+      const like = `%${filters.query}%`;
+      clauses.push(
+        Prisma.sql`(
+          "name" ILIKE ${like}
+          OR "description" ILIKE ${like}
+          OR "city" ILIKE ${like}
+          OR EXISTS (
+            SELECT 1 FROM unnest("cuisines") AS c WHERE c ILIKE ${like}
+          )
+        )`,
+      );
+    }
+
+    if (filters.city.length) {
+      const cityClauses = filters.city.map(
+        (value) => Prisma.sql`"city" ILIKE ${value}`,
+      );
+      clauses.push(
+        cityClauses.length === 1
+          ? cityClauses[0]
+          : Prisma.sql`(${Prisma.join(cityClauses, ' OR ')})`,
+      );
+    }
+
+    if (filters.cuisine.length) {
+      const cuisineClauses = filters.cuisine.map(
+        (value) =>
+          Prisma.sql`EXISTS (
+            SELECT 1 FROM unnest("cuisines") AS c WHERE c ILIKE ${value}
+          )`,
+      );
+      clauses.push(
+        cuisineClauses.length === 1
+          ? cuisineClauses[0]
+          : Prisma.sql`(${Prisma.join(cuisineClauses, ' OR ')})`,
+      );
+    }
+
+    if (filters.priceLevel.length) {
+      const priceValues = Prisma.join(
+        filters.priceLevel.map((value) => Prisma.sql`${value}`),
+        ',',
+      );
+      clauses.push(
+        Prisma.sql`"priceLevel" = ANY(ARRAY[${priceValues}]::int[])`,
+      );
+    }
+
+    if (filters.tag) {
+      clauses.push(
+        Prisma.sql`EXISTS (
+          SELECT 1 FROM unnest("tags") AS t WHERE t ILIKE ${filters.tag}
+        )`,
+      );
+    }
+
+    return clauses;
+  }
+
+  private composeWhere(clauses: Prisma.Sql[]): Prisma.Sql {
+    if (!clauses.length) {
+      return Prisma.sql``;
+    }
+    const joined = Prisma.join(clauses, ' AND ');
+    return Prisma.sql`WHERE ${joined}`;
   }
 
   private async trackView(venueId: string): Promise<void> {

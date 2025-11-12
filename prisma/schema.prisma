@@ -59,7 +59,11 @@ model Tenant {
   id        String   @id @default(cuid())
   name      String
   slug      String   @unique
+  city      String?
+  timezone  String?
   isActive  Boolean  @default(true)
+  theme     Json?
+  domains   String[] @default([])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -67,6 +71,7 @@ model Tenant {
   plans  TenantPlan[]
   members Membership[]
   apiKeys ApiKey[]
+  menus  Menu[]
 }
 
 model TenantPlan {
@@ -135,6 +140,9 @@ model Venue {
   parkingInfo  String?
   publicTransit String?
   hours        Json?
+  floorplanRoomWidth  Int? @default(1200)
+  floorplanRoomHeight Int? @default(800)
+  floorplanGridSize   Int? @default(20)
   turnTimeMin  Int            @default(10)
   holdTtlMin   Int            @default(15)
   defaultDurationMin Int      @default(120)
@@ -179,10 +187,15 @@ model Table {
   joinGroupId String?
   zone      String?
   area      String?
-  x         Int?
-  y         Int?
+  x         Int?    @default(0)
+  y         Int?    @default(0)
+  angle     Int?    @default(0)
+  shape     String?
+  w         Int?    @default(60)
+  h         Int?    @default(60)
   width     Int?
   height    Int?
+  minSeating Int?   @default(1)
   metadata  Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -405,6 +418,10 @@ model WebhookEndpoint {
   url         String
   description String?   @db.VarChar(255)
   isActive    Boolean   @default(true)
+  events      WebhookEvent[] @default([])
+  secret      String
+  secretCreatedAt DateTime @default(now())
+  secretRotatedAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -427,6 +444,8 @@ model WebhookDelivery {
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
   signatureInput String?
+  failureReason  String?
+  failedAt       DateTime?
 
   endpoint    WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
   reservation Reservation?    @relation(fields: [reservationId], references: [id], onDelete: SetNull)
@@ -472,6 +491,8 @@ model ApiKey {
   isActive         Boolean  @default(true)
   rateLimitPerMin  Int      @default(60)
   burstLimit       Int      @default(30)
+  monthlyCap       Int      @default(500000)
+  tokenPreview     String?
   scopeJSON        Json?
 
   tenant Tenant @relation(fields: [tenantId], references: [id])
@@ -486,6 +507,11 @@ model AuditLog {
   resource  String
   before    Json?
   after     Json?
+  route     String?
+  method    String?
+  statusCode Int?
+  requestId String?
+  tenantId  String?
   createdAt DateTime @default(now())
 
   @@index([resource, createdAt], map: "idx_audit_resource_created_at")
@@ -495,18 +521,23 @@ model AuditLog {
 
 model Menu {
   id          String   @id @default(cuid())
+  tenantId    String
   venueId     String
   name        String
   description String?
   isActive    Boolean  @default(true)
+  isPublic    Boolean  @default(true)
   displayOrder Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  tenant   Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   venue    Venue         @relation(fields: [venueId], references: [id], onDelete: Cascade)
   sections MenuSection[]
 
+  @@index([tenantId])
   @@index([venueId, isActive])
+  @@index([venueId, isPublic])
 }
 
 model MenuSection {
@@ -528,11 +559,13 @@ model MenuItem {
   id          String   @id @default(cuid())
   sectionId   String
   name        String
+  short       String?
   description String?  @db.Text
   price       Decimal  @db.Decimal(10, 2)
-  currency    String   @default("USD")
+  currency    String   @default("ALL")
   imageUrl    String?
   isAvailable Boolean  @default(true)
+  tags        String[] @default([])
   displayOrder Int     @default(0)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -594,4 +627,3 @@ model VenueAnalytics {
   @@index([venueId, date])
   @@index([date])
 }
-

@@ -1,13 +1,18 @@
 export interface MenuItemDto {
   id: string;
   name: string;
+  short: string | null;
   price: number;
   currency: string;
-  description: string | null;
+  isAvailable: boolean;
+  imageUrl: string | null;
+  tags: string[];
 }
 
 export interface MenuSectionDto {
+  id?: string;
   title: string;
+  position: number;
   items: MenuItemDto[];
 }
 

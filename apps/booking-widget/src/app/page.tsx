@@ -1,7 +1,8 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
   ApiError,
   VENUE_ID,
@@ -23,17 +24,19 @@ import type {
   Reservation,
   ReservationStatus,
 } from '@/lib/types';
+import { TimePicker } from '@/components/TimePicker';
 
 const steps = [
   { id: 'plan', labelKey: 'wizard.step.plan' },
   { id: 'details', labelKey: 'wizard.step.details' },
+  { id: 'edit', labelKey: 'wizard.step.edit' },
   { id: 'review', labelKey: 'wizard.step.review' },
 ] as const;
 
 type StepId = (typeof steps)[number]['id'] | 'complete';
 
 function isWizardStep(step: StepId): step is (typeof steps)[number]['id'] {
-  return step === 'plan' || step === 'details' || step === 'review';
+  return step === 'plan' || step === 'details' || step === 'edit' || step === 'review';
 }
 
 function todayISO(): string {
@@ -136,6 +139,81 @@ function formatStatus(
 ) {
   const key = `status.${status}` as TranslationKey;
   return translate(key);
+}
+
+function toStepId(value: string | null): StepId {
+  if (value === 'complete') return 'complete';
+  if (value === 'plan' || value === 'details' || value === 'edit' || value === 'review') {
+    return value;
+  }
+  return 'plan';
+}
+
+function isValidIsoDate(value: string | null): value is string {
+  if (!value) return false;
+  const match = value.match(/^\d{4}-\d{2}-\d{2}$/);
+  if (!match) return false;
+  const date = new Date(value);
+  return !Number.isNaN(date.getTime());
+}
+
+function generateIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  const segment = () =>
+    Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .substring(1);
+  return `${segment()}${segment()}-${segment()}-${segment()}-${segment()}-${segment()}${segment()}${segment()}`;
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+async function withBackoff<T>(fn: () => Promise<T>, attempts = 3, initialDelay = 400): Promise<T> {
+  let attempt = 0;
+  let delay = initialDelay;
+  while (true) {
+    try {
+      return await fn();
+    } catch (error) {
+      attempt += 1;
+      if (
+        !(error instanceof ApiError && error.status === 429) ||
+        attempt >= attempts
+      ) {
+        throw error;
+      }
+      await wait(delay);
+      delay *= 2;
+    }
+  }
+}
+
+function trackEvent(event: string, data: Record<string, unknown> = {}) {
+  console.info('[analytics]', event, data);
+}
+
+function isValidName(value: string) {
+  return value.trim().length >= 2;
+}
+
+function isValidEmail(value: string) {
+  if (!value) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function normalizePhone(value: string) {
+  return value.replace(/[^\d+]/g, '');
+}
+
+function isValidPhone(value: string) {
+  const digits = value.replace(/\D/g, '');
+  return digits.length >= 7;
 }
 
 function HealthBadge() {
@@ -265,6 +343,9 @@ function ConflictsPanel({
 }) {
   const { t, locale } = useLocale();
   if (!availability) return null;
+  const availableCount = availability?.stats?.available ?? 0;
+  // Only show conflicts when no tables are currently available for the request.
+  if (availableCount > 0) return null;
   const reservations = availability.conflicts?.reservations ?? [];
   const holds = availability.conflicts?.holds ?? [];
   const total = reservations.length + holds.length;
@@ -338,11 +419,116 @@ function ConflictsPanel({
 
 export default function BookingWidget() {
   const { t, locale } = useLocale();
-  const [step, setStep] = useState<StepId>('plan');
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [date, setDate] = useState(todayISO());
-  const [time, setTime] = useState(roundToQuarterHour());
-  const [party, setParty] = useState(2);
+  const [venueId, setVenueId] = useState<string>(VENUE_ID);
+
+  const initialDate = isValidIsoDate(searchParams.get('date'))
+    ? (searchParams.get('date') as string)
+    : todayISO();
+  const fallbackTime = roundToQuarterHour();
+  const initialTime = normalizeTimeInput(searchParams.get('time') ?? fallbackTime);
+  const initialPartyRaw = Number.parseInt(searchParams.get('party') ?? '', 10);
+  const initialParty = Number.isFinite(initialPartyRaw) && initialPartyRaw > 0 ? initialPartyRaw : 2;
+  const initialStep = toStepId(searchParams.get('step'));
+
+  const [stepValue, setStepValue] = useState<StepId>(initialStep);
+  const [dateValue, setDateValue] = useState(initialDate);
+  const [timeValue, setTimeValue] = useState(initialTime);
+  const [partyValue, setPartyValue] = useState(initialParty);
+
+  const updateQuery = useCallback(
+    (updates: Record<string, string | null>) => {
+      const params = new URLSearchParams(searchParams.toString());
+      let changed = false;
+      for (const [key, value] of Object.entries(updates)) {
+        const current = params.get(key);
+        if (value === null) {
+          if (current !== null) {
+            params.delete(key);
+            changed = true;
+          }
+        } else if (current !== value) {
+          params.set(key, value);
+          changed = true;
+        }
+      }
+      if (!changed) return;
+      const query = params.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+    },
+    [router, pathname, searchParams],
+  );
+
+  const setStep = useCallback(
+    (next: StepId) => {
+      setStepValue(next);
+      updateQuery({ step: next });
+    },
+    [updateQuery],
+  );
+
+  const setDate = useCallback(
+    (value: string) => {
+      setDateValue(value);
+      updateQuery({ date: value });
+    },
+    [updateQuery],
+  );
+
+  const setTime = useCallback(
+    (value: string) => {
+      setTimeValue(value);
+      updateQuery({ time: value });
+    },
+    [updateQuery],
+  );
+
+  const setParty = useCallback(
+    (value: number) => {
+      const normalized = Number.isFinite(value) && value > 0 ? Math.round(value) : 1;
+      setPartyValue(normalized);
+      updateQuery({ party: String(normalized) });
+    },
+    [updateQuery],
+  );
+
+  const step = stepValue;
+  const date = dateValue;
+  const time = timeValue;
+  const party = partyValue;
+
+  useEffect(() => {
+    const paramStep = toStepId(searchParams.get('step'));
+    if (paramStep !== stepValue) {
+      setStepValue(paramStep);
+    }
+    const paramDate = searchParams.get('date');
+    if (paramDate && isValidIsoDate(paramDate) && paramDate !== dateValue) {
+      setDateValue(paramDate);
+    }
+    const paramTime = searchParams.get('time');
+    if (paramTime) {
+      const normalized = normalizeTimeInput(paramTime);
+      if (normalized !== timeValue) {
+        setTimeValue(normalized);
+      }
+    }
+    const paramParty = Number.parseInt(searchParams.get('party') ?? '', 10);
+    if (Number.isFinite(paramParty) && paramParty > 0 && paramParty !== partyValue) {
+      setPartyValue(paramParty);
+    }
+  }, [searchParams, stepValue, dateValue, timeValue, partyValue]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlVenueId = params.get('tenantId') || params.get('venueId') || VENUE_ID;
+      setVenueId(urlVenueId);
+    }
+  }, []);
 
   const [availability, setAvailability] = useState<AvailabilityResponse | null>(
     null,
@@ -364,6 +550,11 @@ export default function BookingWidget() {
   const [consentTerms, setConsentTerms] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [consentError, setConsentError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{
+    name?: string;
+    phone?: string;
+    email?: string;
+  }>({});
 
   const [hold, setHold] = useState<Hold | null>(null);
   const [holdError, setHoldError] = useState<string | null>(null);
@@ -374,7 +565,6 @@ export default function BookingWidget() {
   const [reservationError, setReservationError] = useState<string | null>(null);
 
   const availableTables = availability?.tables ?? [];
-  const timeInputLang = locale === 'al' ? 'sq-AL' : 'en-GB';
   async function loadAvailability(params: {
     date: string;
     time: string;
@@ -389,7 +579,7 @@ export default function BookingWidget() {
 
     try {
       const response = await fetchAvailability({
-        venueId: VENUE_ID,
+        venueId: venueId,
         date: params.date,
         time: params.time,
         partySize: params.party,
@@ -400,6 +590,11 @@ export default function BookingWidget() {
         setAvailabilityError(t('plan.empty'));
         return false;
       }
+      trackEvent('selection_made', {
+        date: params.date,
+        time: params.time,
+        party: params.party,
+      });
       return true;
     } catch (error) {
       setAvailability(null);
@@ -410,7 +605,7 @@ export default function BookingWidget() {
     }
   }
 
-  async function handlePlanSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handlePlanSubmit(event: FormEvent<HTMLFormElement>, nextStep: StepId = 'details') {
     event.preventDefault();
     const normalized = normalizeTimeInput(time);
     if (normalized !== time) {
@@ -418,7 +613,7 @@ export default function BookingWidget() {
     }
     const success = await loadAvailability({ date, time: normalized, party });
     if (success) {
-      setStep('details');
+      setStep(nextStep);
     }
   }
 
@@ -435,6 +630,7 @@ export default function BookingWidget() {
     event.preventDefault();
     setConsentError(null);
     setHoldError(null);
+    setFieldErrors({});
 
     const normalizedTime = normalizeTimeInput(time);
     if (normalizedTime !== time) {
@@ -443,6 +639,26 @@ export default function BookingWidget() {
 
     if (!consentTerms) {
       setConsentError(t('form.required'));
+      return;
+    }
+
+    const trimmedName = guestName.trim();
+    const sanitizedPhone = normalizePhone(guestPhone);
+    const trimmedEmail = guestEmail.trim();
+
+    const errors: typeof fieldErrors = {};
+    if (!isValidName(trimmedName)) {
+      errors.name = t('details.errors.name');
+    }
+    if (!isValidPhone(sanitizedPhone)) {
+      errors.phone = t('details.errors.phone');
+    }
+    if (!isValidEmail(trimmedEmail)) {
+      errors.email = t('details.errors.email');
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
@@ -456,20 +672,46 @@ export default function BookingWidget() {
         return;
       }
 
-      const nextHold = await createHold({
-        venueId: VENUE_ID,
-        date,
-        time: normalizedTime,
-        partySize: party,
-        tableId: autoTable.id,
-        createdBy: 'guest-widget',
-      });
+      const nextHold = await withBackoff(() =>
+        createHold(
+          {
+            venueId: venueId,
+            date,
+            time: normalizedTime,
+            partySize: party,
+            tableId: autoTable.id,
+            createdBy: 'guest-widget',
+          },
+          { idempotencyKey: generateIdempotencyKey() },
+        ),
+      );
       setHold(nextHold);
+      trackEvent('hold_created', {
+        holdId: nextHold.id,
+        date: nextHold.booking.date,
+        time: nextHold.booking.time,
+        party: nextHold.booking.partySize,
+      });
       setStep('review');
     } catch (error) {
       setHold(null);
-      setHoldError(getErrorMessage(error, t('details.hold.error')));
-      await retryAvailability();
+      if (error instanceof ApiError) {
+        if (error.status === 409) {
+          setHoldError(t('errors.conflict'));
+          setStep('edit');
+          await retryAvailability();
+        } else if (error.status === 429) {
+          setHoldError(t('errors.rateLimit'));
+        } else {
+          setHoldError(getErrorMessage(error, t('details.hold.error')));
+        }
+      } else {
+        setHoldError(getErrorMessage(error, t('details.hold.error')));
+      }
+      const status = error instanceof ApiError ? error.status : undefined;
+      if (status !== 409 && status !== 429) {
+        await retryAvailability();
+      }
     } finally {
       setCreatingHold(false);
     }
@@ -485,7 +727,7 @@ export default function BookingWidget() {
     setReservationError(null);
     try {
       const normalizedName = guestName.trim() || 'Guest';
-      const normalizedPhone = guestPhone.trim();
+      const normalizedPhone = normalizePhone(guestPhone);
       const normalizedEmail = guestEmail.trim();
       const normalizedNotes = guestNotes.trim();
       const consentNotes = ['Privacy consent accepted: yes'];
@@ -493,21 +735,45 @@ export default function BookingWidget() {
         consentNotes.push('Marketing opt-in: yes');
       }
       const notesPayload = [normalizedNotes, ...consentNotes].filter(Boolean).join('\n');
-      const nextReservation = await createReservation({
-        venueId: VENUE_ID,
-        holdId: hold.id,
-        guestName: normalizedName,
-        guestPhone: normalizedPhone ? normalizedPhone : null,
-        guestEmail: normalizedEmail ? normalizedEmail : null,
-        notes: notesPayload || null,
-        channel: 'guest-web',
-        createdBy: 'guest-widget',
-      });
+      const nextReservation = await withBackoff(() =>
+        createReservation(
+          {
+            venueId: venueId,
+            holdId: hold.id,
+            guestName: normalizedName,
+            guestPhone: normalizedPhone ? normalizedPhone : null,
+            guestEmail: normalizedEmail ? normalizedEmail : null,
+            notes: notesPayload || null,
+            channel: 'guest-web',
+            createdBy: 'guest-widget',
+          },
+          { idempotencyKey: generateIdempotencyKey() },
+        ),
+      );
       setReservation(nextReservation);
       setStep('complete');
+      trackEvent('reservation_confirmed', {
+        reservationId: nextReservation.id,
+        code: nextReservation.code,
+        party: nextReservation.partySize,
+        date: nextReservation.slotLocalDate,
+        time: nextReservation.slotLocalTime,
+      });
     } catch (error) {
       setReservation(null);
-      setReservationError(getErrorMessage(error, t('review.error')));
+      if (error instanceof ApiError) {
+        if (error.status === 409) {
+          setReservationError(t('errors.conflict'));
+          setStep('edit');
+          await retryAvailability();
+        } else if (error.status === 429) {
+          setReservationError(t('errors.rateLimit'));
+        } else {
+          setReservationError(getErrorMessage(error, t('review.error')));
+        }
+      } else {
+        setReservationError(getErrorMessage(error, t('review.error')));
+      }
     } finally {
       setConfirming(false);
     }
@@ -526,9 +792,13 @@ export default function BookingWidget() {
     setConsentTerms(false);
     setConsentMarketing(false);
     setConsentError(null);
+    setFieldErrors({});
     setAvailability(null);
     setAvailabilityError(null);
     setLastSearchParams(null);
+    setParty(2);
+    setDate(todayISO());
+    setTime(roundToQuarterHour());
   }
 
   const reviewDate = hold?.booking.date ?? date;
@@ -608,20 +878,14 @@ export default function BookingWidget() {
                   >
                     {t('plan.time')}
                   </label>
-                  <input
+                  <TimePicker
                     id="plan-time"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
                     name="time"
-                    onChange={(event) => setTime(event.target.value)}
-                    onBlur={(event) => setTime(normalizeTimeInput(event.target.value))}
-                    required
-                    type="text"
-                    inputMode="numeric"
-                    pattern="^([0-1]\\d|2[0-3]):[0-5]\\d$"
-                    placeholder="HH:MM"
-                    title={t('plan.time.placeholder')}
-                    lang={timeInputLang}
                     value={time}
+                    onChange={setTime}
+                    required
+                    placeholder="HH:MM"
+                    className="mt-1"
                   />
                 </div>
               </div>
@@ -632,6 +896,102 @@ export default function BookingWidget() {
                   disabled={availabilityLoading}
                 >
                   {availabilityLoading ? t('plan.loading') : t('plan.submit')}
+                </button>
+              </div>
+            </form>
+            <div className="space-y-4">
+              {availabilityError && (
+                <div
+                  role="alert"
+                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"
+                >
+                  {availabilityError}
+                </div>
+              )}
+              <ConflictsPanel availability={availability} onRetry={retryAvailability} />
+            </div>
+          </section>
+        )}
+
+        {step === 'edit' && (
+          <section className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm space-y-6">
+            <div className="space-y-2">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {t('edit.heading')}
+              </h2>
+              <p className="text-sm text-gray-600 max-w-lg">
+                {t('edit.description')}
+              </p>
+            </div>
+            <form
+              onSubmit={(event) => handlePlanSubmit(event, 'details')}
+              className="space-y-6"
+            >
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label
+                    htmlFor="edit-party"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    {t('plan.party')}
+                  </label>
+                  <input
+                    id="edit-party"
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    inputMode="numeric"
+                    min={1}
+                    name="party"
+                    onChange={(event) => setParty(Number(event.target.value))}
+                    required
+                    type="number"
+                    value={party}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-date"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    {t('plan.date')}
+                  </label>
+                  <input
+                    id="edit-date"
+                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    name="date"
+                    onChange={(event) => setDate(event.target.value)}
+                    required
+                    type="date"
+                    value={date}
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="edit-time"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    {t('plan.time')}
+                  </label>
+                  <TimePicker
+                    id="edit-time"
+                    value={time}
+                    onChange={(value) => setTime(value)}
+                  />
+                </div>
+              </div>
+              <div className="flex justify-between">
+                <button
+                  type="button"
+                  className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => setStep('review')}
+                >
+                  {t('wizard.back')}
+                </button>
+                <button
+                  type="submit"
+                  className="inline-flex items-center rounded-lg bg-black px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                  disabled={availabilityLoading}
+                >
+                  {availabilityLoading ? t('plan.loading') : t('edit.submit')}
                 </button>
               </div>
             </form>
@@ -670,14 +1030,21 @@ export default function BookingWidget() {
                   </label>
                   <input
                     id="guest-name"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${fieldErrors.name ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200' : ''}`}
                     name="guestName"
-                    onChange={(event) => setGuestName(event.target.value)}
+                    onChange={(event) => {
+                      setGuestName(event.target.value);
+                      setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                    }}
                     placeholder="Jane Doe"
                     required
                     value={guestName}
                     autoComplete="name"
+                    aria-invalid={fieldErrors.name ? 'true' : 'false'}
                   />
+                  {fieldErrors.name && (
+                    <p className="mt-1 text-xs text-rose-600">{fieldErrors.name}</p>
+                  )}
                 </div>
                 <div>
                   <label
@@ -688,15 +1055,23 @@ export default function BookingWidget() {
                   </label>
                   <input
                     id="guest-phone"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${fieldErrors.phone ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200' : ''}`}
                     name="guestPhone"
-                    onChange={(event) => setGuestPhone(event.target.value)}
+                    onChange={(event) => {
+                      setGuestPhone(event.target.value);
+                      setHoldError(null);
+                      setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                    }}
                     placeholder="+1 555 123 4567"
                     required
                     value={guestPhone}
                     autoComplete="tel"
                     inputMode="tel"
+                    aria-invalid={fieldErrors.phone ? 'true' : 'false'}
                   />
+                  {fieldErrors.phone && (
+                    <p className="mt-1 text-xs text-rose-600">{fieldErrors.phone}</p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label
@@ -707,17 +1082,22 @@ export default function BookingWidget() {
                   </label>
                   <input
                     id="guest-email"
-                    className="mt-1 w-full rounded-lg border px-3 py-2"
+                    className={`mt-1 w-full rounded-lg border px-3 py-2 ${fieldErrors.email ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-200' : ''}`}
                     type="email"
                     name="guestEmail"
                     onChange={(event) => {
                       setGuestEmail(event.target.value);
                       setHoldError(null);
+                      setFieldErrors((prev) => ({ ...prev, email: undefined }));
                     }}
                     placeholder="guest@example.com"
                     value={guestEmail}
                     autoComplete="email"
+                    aria-invalid={fieldErrors.email ? 'true' : 'false'}
                   />
+                  {fieldErrors.email && (
+                    <p className="mt-1 text-xs text-rose-600">{fieldErrors.email}</p>
+                  )}
                 </div>
                 <div className="md:col-span-2">
                   <label
@@ -854,6 +1234,20 @@ export default function BookingWidget() {
                 <li>{t('review.consents.required')}</li>
                 {consentMarketing && <li>{t('review.consents.marketing')}</li>}
               </ul>
+              <div className="pt-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                  onClick={() => {
+                    setHold(null);
+                    setHoldError(null);
+                    setReservationError(null);
+                    setStep('edit');
+                  }}
+                >
+                  {t('review.editAction')}
+                </button>
+              </div>
             </div>
 
             {reservationError && (

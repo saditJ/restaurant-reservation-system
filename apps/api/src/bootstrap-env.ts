@@ -68,11 +68,11 @@ export function bootstrapEnv() {
     try {
       assignEnv(parseEnvFile(envFile));
     } catch (error) {
-      // eslint-disable-next-line no-console
       console.warn(`Failed to load environment file ${envFile}`, error);
     }
   }
 
+  const nodeEnv = (process.env.NODE_ENV ?? '').toLowerCase();
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     throw new Error(
@@ -88,15 +88,29 @@ export function bootstrapEnv() {
 
   const piiSecret = (process.env.PII_SECRET ?? '').trim();
   if (!piiSecret) {
-    const nodeEnv = (process.env.NODE_ENV ?? '').toLowerCase();
     if (nodeEnv === 'production') {
       throw new Error('PII_SECRET is required for encrypting guest data.');
     }
-    // eslint-disable-next-line no-console
+
     console.warn(
       'PII_SECRET is not set; using an insecure built-in development secret.',
     );
     process.env.PII_SECRET = 'dev-only-insecure-pii-secret-key';
+  }
+
+  const guestLinkSecret = (process.env.GUEST_LINK_SECRET ?? '').trim();
+  if (!guestLinkSecret) {
+    if (nodeEnv === 'production') {
+      throw new Error('GUEST_LINK_SECRET is required for guest link tokens.');
+    }
+
+    console.warn(
+      'GUEST_LINK_SECRET is not set; using an insecure built-in development secret.',
+    );
+    process.env.GUEST_LINK_SECRET = 'dev-guest-link-secret';
+  }
+  if (!process.env.GUEST_LINK_TTL_HOURS) {
+    process.env.GUEST_LINK_TTL_HOURS = '72';
   }
 
   // Rate limit defaults

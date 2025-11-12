@@ -195,6 +195,22 @@ export function formatVenueDateTime(
   );
 }
 
+export function formatDateEU(localDate: string) {
+  if (!localDate) return '';
+  const match = localDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return localDate;
+  const [, year, month, day] = match;
+  return `${day}/${month}/${year}`;
+}
+
+export function formatTimeEU(localTime: string) {
+  if (!localTime) return '';
+  const match = localTime.match(/^(\d{2}):(\d{2})/);
+  if (!match) return localTime;
+  const [, hours, minutes] = match;
+  return `${hours}:${minutes}`;
+}
+
 export function clearTimeFormatCache() {
   // Formatters are created on demand; no caching to clear.
 }

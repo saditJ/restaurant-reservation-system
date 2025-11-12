@@ -11,13 +11,13 @@ import {
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
-    IsInt,
-    IsNotEmpty,
-    IsOptional,
-    IsPositive,
-    IsString,
-    Max,
-  } from 'class-validator';
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import type { Prisma, PacingRule } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
@@ -144,8 +144,10 @@ export class AdminPacingRulesController {
     @Body() body: UpdatePacingRuleDto,
   ): Promise<{ rule: PacingRuleSummary }> {
     const data: Prisma.PacingRuleUpdateInput = {};
-    if (body.windowMinutes !== undefined) data.windowMinutes = body.windowMinutes;
-    if (body.maxReservations !== undefined) data.maxReservations = body.maxReservations;
+    if (body.windowMinutes !== undefined)
+      data.windowMinutes = body.windowMinutes;
+    if (body.maxReservations !== undefined)
+      data.maxReservations = body.maxReservations;
     if (body.maxCovers !== undefined) data.maxCovers = body.maxCovers;
 
     const rule = await this.prisma.pacingRule.update({ where: { id }, data });

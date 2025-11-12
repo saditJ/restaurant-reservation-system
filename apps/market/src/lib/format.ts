@@ -1,4 +1,7 @@
-export function formatPriceTier(tier: number): string {
+export function formatPriceTier(tier?: number | null): string {
+  if (typeof tier !== 'number' || !Number.isFinite(tier)) {
+    return '$$';
+  }
   const clamp = Math.max(1, Math.min(4, Math.floor(tier)));
   return '$'.repeat(clamp);
 }

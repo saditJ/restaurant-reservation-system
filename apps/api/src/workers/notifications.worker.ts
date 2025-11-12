@@ -1,10 +1,7 @@
 import '../bootstrap-env';
 
 import { Logger } from '@nestjs/common';
-import {
-  NotificationOutbox,
-  NotificationOutboxStatus,
-} from '@prisma/client';
+import { NotificationOutbox, NotificationOutboxStatus } from '@prisma/client';
 import type { Request } from 'express';
 import { TemplateRenderer } from '../notifications/template.renderer';
 import { EmailNotificationProvider } from '../notifications/providers/email.provider';
@@ -27,10 +24,7 @@ const POLL_INTERVAL_MS = resolveNumber(
   5_000,
 );
 const BATCH_SIZE = resolveNumber(process.env.NOTIFICATIONS_BATCH_SIZE, 10);
-const MAX_ATTEMPTS = resolveNumber(
-  process.env.NOTIFICATIONS_MAX_ATTEMPTS,
-  5,
-);
+const MAX_ATTEMPTS = resolveNumber(process.env.NOTIFICATIONS_MAX_ATTEMPTS, 5);
 
 let running = true;
 
@@ -126,9 +120,7 @@ async function processJob(job: NotificationOutbox, cycleRequestId: string) {
         `Notification ${job.id} dead-lettered after ${attempt} attempts: ${message}`,
       );
     } else {
-      const delaySec = Math.round(
-        (nextSchedule.getTime() - Date.now()) / 1000,
-      );
+      const delaySec = Math.round((nextSchedule.getTime() - Date.now()) / 1000);
       logger.warn(
         `[request_id=${cycleRequestId}] Notification ${job.id} attempt ${attempt} failed: ${message}. Retrying in ${delaySec}s`,
       );
@@ -170,9 +162,7 @@ async function deliver(
   throw new Error(`Unsupported notification channel: ${payload.channel}`);
 }
 
-function parsePayload(
-  job: NotificationOutbox,
-): ReservationNotificationPayload {
+function parsePayload(job: NotificationOutbox): ReservationNotificationPayload {
   const payload = job.payload as ReservationNotificationPayload | null;
   if (!payload) {
     throw new Error('Missing notification payload');

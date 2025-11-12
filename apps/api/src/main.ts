@@ -2,6 +2,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { NextFunction, Request, Response } from 'express';
+import helmet from 'helmet';
 import { Logger as PinoLogger } from 'nestjs-pino';
 import './bootstrap-env';
 import { AppModule } from './app.module';
@@ -12,12 +13,19 @@ import {
 } from './common/middleware/request-id.middleware';
 import { MetricsService } from './metrics/metrics.service';
 import { createRequestTimingMiddleware } from './metrics/request-timing.middleware';
+import { initTelemetry } from './telemetry';
+
+initTelemetry();
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
 
+  const httpServer = app.getHttpAdapter().getInstance();
+  if (typeof httpServer?.disable === 'function') {
+    httpServer.disable('x-powered-by');
+  }
   app.use(requestIdMiddleware);
 
   const logger = app.get(PinoLogger);
@@ -35,9 +43,53 @@ async function bootstrap() {
   );
   app.useGlobalFilters(new HttpExceptionFilter(logger));
 
-  app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3002'],
+  const isProd = (process.env.NODE_ENV ?? 'development') === 'production';
+  const isDev = !isProd;
+  const allowedOrigins = buildAllowedOrigins();
+  const frameAncestors = buildFrameAncestors(isDev);
+
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: buildContentSecurityPolicy(frameAncestors, isDev),
+      },
+      referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+      hsts: isProd
+        ? {
+            maxAge: 63072000,
+            includeSubDomains: true,
+            preload: true,
+          }
+        : false,
+    }),
+  );
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    next();
   });
+
+  if (isDev) {
+    app.enableCors({
+      origin: true,
+      credentials: true,
+    });
+  } else {
+    app.enableCors({
+      origin: (origin, callback) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        const normalized = normalizeOrigin(origin);
+        if (normalized && allowedOrigins.has(normalized)) {
+          callback(null, true);
+          return;
+        }
+        callback(new Error(`Origin ${origin} is not allowed by CORS`), false);
+      },
+      credentials: true,
+    });
+  }
 
   setupSwagger(app, logger);
 
@@ -47,7 +99,6 @@ async function bootstrap() {
 }
 
 bootstrap().catch((error) => {
-  // eslint-disable-next-line no-console
   console.error('Failed to bootstrap Nest API', error);
   process.exitCode = 1;
 });
@@ -112,6 +163,79 @@ function setupSwagger(app: INestApplication, logger: PinoLogger) {
   logger.log(`Swagger UI available at /${swaggerPath} (API key required)`);
 }
 
+function buildAllowedOrigins() {
+  const defaults = [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+  ];
+  const extra = (process.env.CORS_ORIGINS ?? '')
+    .split(',')
+    .map((value) => normalizeOrigin(value))
+    .filter((value): value is string => Boolean(value));
+  return new Set(
+    [...defaults.map(normalizeOrigin), ...extra].filter(
+      (value): value is string => Boolean(value),
+    ),
+  );
+}
+
+function buildContentSecurityPolicy(frameAncestors: string[], isDev: boolean) {
+  const scriptSrc = ["'self'"];
+  if (isDev) {
+    scriptSrc.push("'unsafe-eval'", "'unsafe-inline'");
+  }
+
+  const connectSrc = ["'self'"];
+  if (isDev) {
+    connectSrc.push('ws:', 'http://localhost:*', 'https://localhost:*');
+  }
+
+  return {
+    defaultSrc: ["'self'"],
+    baseUri: ["'self'"],
+    imgSrc: ["'self'", 'data:', 'https:'],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    fontSrc: ["'self'", 'data:'],
+    formAction: ["'self'"],
+    frameAncestors,
+    objectSrc: ["'none'"],
+    connectSrc,
+    scriptSrc,
+  };
+}
+
+function buildFrameAncestors(isDev: boolean) {
+  const configured = [
+    process.env.BOOKING_WIDGET_FRAME_ANCESTORS,
+    process.env.MARKET_ORIGIN,
+  ]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .flatMap((value) => value.split(','));
+
+  const normalized = configured
+    .map((value) => normalizeOrigin(value))
+    .filter((value): value is string => Boolean(value));
+
+  const defaults = ["'self'"];
+  if (isDev) {
+    defaults.push('http://localhost:3000');
+  }
+
+  return Array.from(new Set([...defaults, ...normalized]));
+}
+
+function normalizeOrigin(value: string) {
+  if (!value) {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  return trimmed.replace(/\/+$/, '').toLowerCase();
+}
+
 function createSwaggerGuard(allowedKeys: Set<string>) {
   return (req: Request, res: Response, next: NextFunction) => {
     const header = req.headers['x-api-key'];
@@ -119,8 +243,8 @@ function createSwaggerGuard(allowedKeys: Set<string>) {
       typeof header === 'string'
         ? header
         : Array.isArray(header)
-        ? header[0]
-        : undefined;
+          ? header[0]
+          : undefined;
 
     if (!key) {
       ensureRequestId(req, res);

@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 
 type CacheStatus = 'hit' | 'miss' | 'skipped';
@@ -51,11 +56,16 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       this.enabled = true;
       this.logger.log(`Connected to Redis at ${this.url}`);
     } catch (error) {
-      this.logger.error('Unable to connect to Redis, disabling cache', error as Error);
+      this.logger.error(
+        'Unable to connect to Redis, disabling cache',
+        error as Error,
+      );
       try {
         await this.client.quit();
       } catch (quitError) {
-        this.logger.warn(`Failed to close Redis client after init error: ${(quitError as Error).message}`);
+        this.logger.warn(
+          `Failed to close Redis client after init error: ${(quitError as Error).message}`,
+        );
       }
       this.client = null;
       this.enabled = false;
@@ -67,7 +77,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       await this.client.quit();
     } catch (error) {
-      this.logger.warn(`Error while shutting down Redis client: ${(error as Error).message}`);
+      this.logger.warn(
+        `Error while shutting down Redis client: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -82,7 +94,12 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     return this.client;
   }
 
-  buildAvailabilityKey(venueId: string, date: string, partySize: number, policyHash: string) {
+  buildAvailabilityKey(
+    venueId: string,
+    date: string,
+    partySize: number,
+    policyHash: string,
+  ) {
     const safeVenue = venueId || 'unknown';
     const safeDate = date || 'unknown';
     return `avail:${safeVenue}:${safeDate}:${partySize}:${policyHash}`;
@@ -105,7 +122,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
       }
       return { value: JSON.parse(raw) as T, status: 'hit' };
     } catch (error) {
-      this.logger.warn(`Cache get failed for key "${key}": ${(error as Error).message}`);
+      this.logger.warn(
+        `Cache get failed for key "${key}": ${(error as Error).message}`,
+      );
       return { value: null, status: 'skipped' };
     }
   }
@@ -120,7 +139,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
         await this.client.set(key, payload);
       }
     } catch (error) {
-      this.logger.warn(`Cache set failed for key "${key}": ${(error as Error).message}`);
+      this.logger.warn(
+        `Cache set failed for key "${key}": ${(error as Error).message}`,
+      );
     }
   }
 
@@ -129,7 +150,9 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     try {
       return await this.client.del(key);
     } catch (error) {
-      this.logger.warn(`Cache delete failed for key "${key}": ${(error as Error).message}`);
+      this.logger.warn(
+        `Cache delete failed for key "${key}": ${(error as Error).message}`,
+      );
       return 0;
     }
   }
@@ -147,13 +170,17 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
           pipeline.set(entry.key, payload);
         }
       } catch (error) {
-        this.logger.warn(`Skipping cache mset for key "${entry.key}" due to serialization error: ${(error as Error).message}`);
+        this.logger.warn(
+          `Skipping cache mset for key "${entry.key}" due to serialization error: ${(error as Error).message}`,
+        );
       }
     }
     try {
       await pipeline.exec();
     } catch (error) {
-      this.logger.warn(`Cache pipeline execution failed: ${(error as Error).message}`);
+      this.logger.warn(
+        `Cache pipeline execution failed: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -163,7 +190,13 @@ export class CacheService implements OnModuleInit, OnModuleDestroy {
     let cursor = '0';
     try {
       do {
-        const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', '200');
+        const [nextCursor, keys] = await this.client.scan(
+          cursor,
+          'MATCH',
+          pattern,
+          'COUNT',
+          '200',
+        );
         if (Array.isArray(keys) && keys.length > 0) {
           await this.client.del(...keys);
         }

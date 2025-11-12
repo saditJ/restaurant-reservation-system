@@ -34,7 +34,10 @@ export function computeGuestToken(
   normalizedEmail: string | null,
   reservationId: string,
 ): string {
-  const seed = normalizedEmail && normalizedEmail.length > 0 ? normalizedEmail : reservationId;
+  const seed =
+    normalizedEmail && normalizedEmail.length > 0
+      ? normalizedEmail
+      : reservationId;
   return createHash('sha256')
     .update('reserve-platform/privacy/token')
     .update(seed)

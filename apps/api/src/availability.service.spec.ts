@@ -47,7 +47,9 @@ function makeVenue(overrides: Record<string, unknown> = {}) {
     ...rest
   } = overrides;
 
-  const rawShifts: Array<Record<string, unknown>> = Array.isArray(overrideShifts)
+  const rawShifts: Array<Record<string, unknown>> = Array.isArray(
+    overrideShifts,
+  )
     ? overrideShifts
     : [
         {
@@ -102,19 +104,19 @@ function makeVenue(overrides: Record<string, unknown> = {}) {
         updatedAt: entry.updatedAt ?? createdAt,
       }))
     : Array.isArray(overrideBlackouts)
-    ? overrideBlackouts.flatMap((entry: any, index: number) =>
-        expandBlackoutRange(entry.startDate, entry.endDate).map(
-          (date, innerIndex) => ({
-            id: `blackout-${index + 1}-${innerIndex + 1}`,
-            venueId: entry.venueId ?? VENUE_ID,
-            date,
-            reason: entry.reason ?? null,
-            createdAt: entry.createdAt ?? createdAt,
-            updatedAt: entry.updatedAt ?? createdAt,
-          }),
-        ),
-      )
-    : [];
+      ? overrideBlackouts.flatMap((entry: any, index: number) =>
+          expandBlackoutRange(entry.startDate, entry.endDate).map(
+            (date, innerIndex) => ({
+              id: `blackout-${index + 1}-${innerIndex + 1}`,
+              venueId: entry.venueId ?? VENUE_ID,
+              date,
+              reason: entry.reason ?? null,
+              createdAt: entry.createdAt ?? createdAt,
+              updatedAt: entry.updatedAt ?? createdAt,
+            }),
+          ),
+        )
+      : [];
 
   const pacingRules = Array.isArray(overridePacingRules)
     ? overridePacingRules

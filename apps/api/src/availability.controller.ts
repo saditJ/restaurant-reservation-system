@@ -34,8 +34,7 @@ export class AvailabilityController {
     @Query('tableId') tableId?: string,
     @Req() req?: Request & { cacheStatus?: 'hit' | 'miss' },
   ) {
-    const resolvedParty =
-      partySize?.trim() || legacyParty?.trim() || '2';
+    const resolvedParty = partySize?.trim() || legacyParty?.trim() || '2';
     const normalizedVenueId = venueId?.trim() || DEFAULT_VENUE_ID;
     const normalizedDate = (date ?? '').trim();
     const partySizeNumber = Number(resolvedParty);
@@ -46,9 +45,7 @@ export class AvailabilityController {
     try {
       assertValidDate(normalizedDate);
     } catch (error) {
-      throw new BadRequestException(
-        'Invalid date format, expected YYYY-MM-DD',
-      );
+      throw new BadRequestException('Invalid date format, expected YYYY-MM-DD');
     }
 
     const policyEvaluation = await this.policy.evaluateDay({
@@ -119,9 +116,7 @@ export class AvailabilityController {
       assertValidDate(normalizedStartDate);
       if (normalizedEndDate) assertValidDate(normalizedEndDate);
     } catch (error) {
-      throw new BadRequestException(
-        'Invalid date format, expected YYYY-MM-DD',
-      );
+      throw new BadRequestException('Invalid date format, expected YYYY-MM-DD');
     }
 
     return this.availability.getAvailabilitySlots({

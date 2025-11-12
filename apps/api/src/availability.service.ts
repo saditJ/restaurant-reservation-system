@@ -16,17 +16,17 @@ import {
   Venue,
 } from '@prisma/client';
 import { PrismaService } from './prisma.service';
-import type { PolicyEvaluation, PolicySlot } from './availability/policy.service';
+import type {
+  PolicyEvaluation,
+  PolicySlot,
+} from './availability/policy.service';
 import { AvailabilityPolicyService } from './availability/policy.service';
 import {
   assertValidDate,
   normalizeTimeTo24h,
   toUtcInstant,
 } from './utils/time';
-import {
-  DEFAULT_VENUE_ID,
-  ensureDefaultVenue,
-} from './utils/default-venue';
+import { DEFAULT_VENUE_ID, ensureDefaultVenue } from './utils/default-venue';
 import {
   computeAvailability,
   type EngineInput,
@@ -443,14 +443,19 @@ export class AvailabilityService {
     const id = venueId?.trim() || DEFAULT_VENUE_ID;
     if (id === DEFAULT_VENUE_ID) {
       const venue = await ensureDefaultVenue(this.prisma);
-      const [shifts, availabilityRules, blackoutDates, pacingRules, serviceBuffer] =
-        await Promise.all([
-          this.prisma.shift.findMany({ where: { venueId: id } }),
-          this.prisma.availabilityRule.findMany({ where: { venueId: id } }),
-          this.prisma.blackoutDate.findMany({ where: { venueId: id } }),
-          this.prisma.pacingRule.findMany({ where: { venueId: id } }),
-          this.prisma.serviceBuffer.findUnique({ where: { venueId: id } }),
-        ]);
+      const [
+        shifts,
+        availabilityRules,
+        blackoutDates,
+        pacingRules,
+        serviceBuffer,
+      ] = await Promise.all([
+        this.prisma.shift.findMany({ where: { venueId: id } }),
+        this.prisma.availabilityRule.findMany({ where: { venueId: id } }),
+        this.prisma.blackoutDate.findMany({ where: { venueId: id } }),
+        this.prisma.pacingRule.findMany({ where: { venueId: id } }),
+        this.prisma.serviceBuffer.findUnique({ where: { venueId: id } }),
+      ]);
       return {
         ...venue,
         shifts,
@@ -549,7 +554,9 @@ export class AvailabilityService {
         defaultRule,
         turnTimeMinutes,
       });
-      if (!this.overlaps(reservation.slotStartUtc, end, slotStartUtc, slotEndUtc)) {
+      if (
+        !this.overlaps(reservation.slotStartUtc, end, slotStartUtc, slotEndUtc)
+      ) {
         continue;
       }
 
@@ -571,13 +578,18 @@ export class AvailabilityService {
         durationMinutes,
         code: reservation.code,
       };
-      reservationConflicts.push(conflict);
       const linkedTables =
         reservation.tableIds.length > 0
           ? reservation.tableIds
           : reservation.tableId
-          ? [reservation.tableId]
-          : [];
+            ? [reservation.tableId]
+            : [];
+      // Only surface reservation conflicts that actually occupy specific tables.
+      // Table-less reservations do not block a concrete table and are handled
+      // by pacing separately, so we skip listing them to avoid confusing users.
+      if (linkedTables.length > 0) {
+        reservationConflicts.push(conflict);
+      }
       for (const tableId of linkedTables) {
         const bucket = byTable.get(tableId) ?? {
           reservations: [],
@@ -621,7 +633,11 @@ export class AvailabilityService {
       }
     }
 
-    return { byTable, reservations: reservationConflicts, holds: holdConflicts };
+    return {
+      byTable,
+      reservations: reservationConflicts,
+      holds: holdConflicts,
+    };
   }
 
   private computeBlockEnd(params: {
@@ -632,8 +648,14 @@ export class AvailabilityService {
     defaultRule: AvailabilityRule;
     turnTimeMinutes: number;
   }) {
-    const { slotStartUtc, explicitDuration, partySize, rules, defaultRule, turnTimeMinutes } =
-      params;
+    const {
+      slotStartUtc,
+      explicitDuration,
+      partySize,
+      rules,
+      defaultRule,
+      turnTimeMinutes,
+    } = params;
     const rule = this.pickRule(rules, partySize) ?? defaultRule;
     const baseDuration =
       explicitDuration && explicitDuration > 0
@@ -657,7 +679,8 @@ export class AvailabilityService {
       const ruleSpan = rule.maxPartySize - rule.minPartySize;
       if (
         ruleSpan < candidateSpan ||
-        (ruleSpan === candidateSpan && rule.minPartySize > candidate.minPartySize)
+        (ruleSpan === candidateSpan &&
+          rule.minPartySize > candidate.minPartySize)
       ) {
         candidate = rule;
       }
@@ -709,11 +732,7 @@ export class AvailabilityService {
     });
 
     return wrappingShifts.some((shift) =>
-      this.shiftContains(
-        minutes,
-        '00:00',
-        this.shiftTime(shift.endsAtLocal),
-      ),
+      this.shiftContains(minutes, '00:00', this.shiftTime(shift.endsAtLocal)),
     );
   }
 
@@ -759,9 +778,8 @@ export class AvailabilityService {
     bucket: string,
   ) {
     const countMatches = (entries: Array<{ slotLocalTime: string }>) =>
-      entries.filter(
-        (entry) => this.bucketize(entry.slotLocalTime) === bucket,
-      ).length;
+      entries.filter((entry) => this.bucketize(entry.slotLocalTime) === bucket)
+        .length;
     return countMatches(reservations) + countMatches(holds);
   }
 

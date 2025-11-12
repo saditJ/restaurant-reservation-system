@@ -6,7 +6,7 @@ import {
   WebhookPayload,
   WebhookReservationSnapshot,
 } from './webhook.types';
-import { toPrismaEvent } from './webhook.events';
+import { ALL_RESERVATION_EVENTS, toPrismaEvent } from './webhook.events';
 
 type ReservationSnapshot = Prisma.ReservationGetPayload<{
   include: { venue: true };
@@ -27,7 +27,7 @@ export class WebhooksService {
 
     const endpoints = await this.prisma.webhookEndpoint.findMany({
       where: { isActive: true },
-      select: { id: true },
+      select: { id: true, events: true },
     });
 
     if (endpoints.length === 0) {
@@ -37,9 +37,22 @@ export class WebhooksService {
     const payload = this.buildReservationPayload(reservation);
     const now = new Date();
 
+    const allPrismaEvents = ALL_RESERVATION_EVENTS.map((value) =>
+      toPrismaEvent(value),
+    );
+
     const operations = uniqueEvents.flatMap((event) => {
       const eventEnum = toPrismaEvent(event);
-      return endpoints.map(({ id: endpointId }) =>
+      const matching = endpoints.filter((endpoint) =>
+        (endpoint.events && endpoint.events.length > 0
+          ? endpoint.events
+          : allPrismaEvents
+        ).includes(eventEnum),
+      );
+      if (matching.length === 0) {
+        return [];
+      }
+      return matching.map(({ id: endpointId }) =>
         this.prisma.webhookDelivery.create({
           data: {
             endpointId,
@@ -52,6 +65,10 @@ export class WebhooksService {
         }),
       );
     });
+
+    if (operations.length === 0) {
+      return;
+    }
 
     try {
       await this.prisma.$transaction(operations);

@@ -11,3 +11,6 @@ pnpm-debug.log*
 
 # Misc
 temp-*
+playwright-report/
+test-results/
+blob-report/

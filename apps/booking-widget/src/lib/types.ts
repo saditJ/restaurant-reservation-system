@@ -135,3 +135,34 @@ export type VenuePolicies = {
   guestCanModifyUntilMin: number;
   noShowFeePolicy: boolean;
 };
+
+export type GuestReservationSummary = {
+  id: string;
+  code: string;
+  status: ReservationStatus;
+  slotLocalDate: string;
+  slotLocalTime: string;
+  slotStartUtc: string;
+  partySize: number;
+  guestNameMasked: string;
+  venue: {
+    id: string;
+    name: string;
+    timezone: string;
+  };
+  canReschedule: boolean;
+  canCancel: boolean;
+  policy: {
+    cancelWindowMinutes: number;
+    modifyWindowMinutes: number;
+    minutesUntilStart: number;
+  };
+  actions: {
+    modifyUrl: string;
+    cancelUrl: string;
+  };
+  token: {
+    action: 'view' | 'cancel' | 'reschedule';
+    expiresAt: string;
+  };
+};

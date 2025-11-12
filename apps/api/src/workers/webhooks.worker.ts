@@ -15,8 +15,10 @@ const POLL_INTERVAL_MS = resolveNumber(
   5_000,
 );
 const BATCH_SIZE = resolveNumber(process.env.WEBHOOKS_BATCH_SIZE, 10);
-const MAX_ATTEMPTS = resolveNumber(process.env.WEBHOOKS_MAX_ATTEMPTS, 8);
-const USER_AGENT = process.env.WEBHOOKS_USER_AGENT ?? 'ReservePlatformWebhook/1.0';
+const BACKOFF_SCHEDULE_MS = [0, 60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000];
+const MAX_ATTEMPTS = BACKOFF_SCHEDULE_MS.length;
+const USER_AGENT =
+  process.env.WEBHOOKS_USER_AGENT ?? 'ReservePlatformWebhook/1.0';
 
 type DeliveryJob = Prisma.WebhookDeliveryGetPayload<{
   include: { endpoint: true };
@@ -31,15 +33,6 @@ async function main() {
 
   while (running) {
     try {
-      const secret = resolveSecret();
-      if (!secret) {
-        logger.error(
-          'WEBHOOK_SECRET is not configured; skipping webhook delivery cycle',
-        );
-        await delay(POLL_INTERVAL_MS);
-        continue;
-      }
-
       const jobs = await prisma.webhookDelivery.findMany({
         where: {
           status: WebhookDeliveryStatus.PENDING,
@@ -58,7 +51,7 @@ async function main() {
       for (const job of jobs) {
         if (!running) break;
         try {
-          await processJob(job, secret);
+          await processJob(job);
         } catch (error) {
           const message =
             error instanceof Error ? error.message : String(error);
@@ -79,7 +72,7 @@ async function main() {
   await prisma.$disconnect();
 }
 
-async function processJob(job: DeliveryJob, secret: string) {
+async function processJob(job: DeliveryJob) {
   if (!job.endpoint) {
     logger.warn(`Delivery ${job.id} has no endpoint attached; marking failed`);
     await prisma.webhookDelivery.update({
@@ -87,6 +80,21 @@ async function processJob(job: DeliveryJob, secret: string) {
       data: {
         status: WebhookDeliveryStatus.FAILED,
         lastError: 'Missing endpoint',
+      },
+    });
+    return;
+  }
+
+  const secret = resolveEndpointSecret(job);
+  if (!secret) {
+    logger.error(`Delivery ${job.id} missing endpoint secret; marking failed`);
+    await prisma.webhookDelivery.update({
+      where: { id: job.id },
+      data: {
+        status: WebhookDeliveryStatus.FAILED,
+        lastError: 'Missing endpoint secret',
+        failureReason: 'Missing endpoint secret',
+        failedAt: new Date(),
       },
     });
     return;
@@ -113,6 +121,7 @@ async function processJob(job: DeliveryJob, secret: string) {
         'X-Reserve-Delivery': job.id,
         'X-Reserve-Timestamp': timestamp,
         'X-Reserve-Signature': `t=${timestamp},v1=${signature}`,
+        'X-Webhook-Signature': `sha256=${signature}`,
       },
       body: bodyJson,
     });
@@ -132,8 +141,11 @@ async function processJob(job: DeliveryJob, secret: string) {
         status: WebhookDeliveryStatus.SUCCESS,
         attempts: attempt,
         lastError: null,
+        nextAttemptAt: job.nextAttemptAt,
         deliveredAt: new Date(),
         signatureInput,
+        failureReason: null,
+        failedAt: null,
       },
     });
 
@@ -146,8 +158,9 @@ async function processJob(job: DeliveryJob, secret: string) {
     const nextStatus = shouldRetry
       ? WebhookDeliveryStatus.PENDING
       : WebhookDeliveryStatus.FAILED;
+    const nextAttemptNumber = attempt + 1;
     const nextAttemptAt = shouldRetry
-      ? computeNextSchedule(attempt)
+      ? computeNextSchedule(nextAttemptNumber)
       : job.nextAttemptAt;
 
     await prisma.webhookDelivery.update({
@@ -158,13 +171,13 @@ async function processJob(job: DeliveryJob, secret: string) {
         lastError: message,
         nextAttemptAt,
         signatureInput,
+        failureReason: shouldRetry ? null : message,
+        failedAt: shouldRetry ? null : new Date(),
       },
     });
 
     if (shouldRetry) {
-      const seconds = Math.round(
-        (nextAttemptAt.getTime() - Date.now()) / 1000,
-      );
+      const seconds = Math.round((nextAttemptAt.getTime() - Date.now()) / 1000);
       logger.warn(
         `Webhook ${job.id} attempt ${attempt} failed: ${message}. Retrying in ${seconds}s`,
       );
@@ -178,12 +191,7 @@ async function processJob(job: DeliveryJob, secret: string) {
 
 function extractPayload(job: DeliveryJob): WebhookPayload {
   const raw = job.payload;
-  if (
-    raw &&
-    typeof raw === 'object' &&
-    raw !== null &&
-    'reservation' in raw
-  ) {
+  if (raw && typeof raw === 'object' && raw !== null && 'reservation' in raw) {
     return raw as WebhookPayload;
   }
   const message = `Webhook ${job.id} has invalid payload`;
@@ -213,17 +221,25 @@ async function safeReadText(response: globalThis.Response) {
   }
 }
 
-function resolveSecret(): string | null {
-  const secret = process.env.WEBHOOK_SECRET;
-  if (!secret || secret.trim().length === 0) {
+function resolveEndpointSecret(job: DeliveryJob): string | null {
+  if (!job.endpoint) {
     return null;
   }
-  return secret.trim();
+  const secret = job.endpoint.secret;
+  if (!secret) {
+    return null;
+  }
+  const trimmed = secret.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
-function computeNextSchedule(attempt: number) {
-  const backoffMinutes = Math.min(30, 2 ** (attempt - 1));
-  return new Date(Date.now() + backoffMinutes * 60_000);
+function computeNextSchedule(nextAttemptNumber: number) {
+  const index = Math.max(
+    0,
+    Math.min(nextAttemptNumber - 1, BACKOFF_SCHEDULE_MS.length - 1),
+  );
+  const delay = BACKOFF_SCHEDULE_MS[index];
+  return new Date(Date.now() + delay);
 }
 
 function resolveNumber(raw: string | undefined, fallback: number) {

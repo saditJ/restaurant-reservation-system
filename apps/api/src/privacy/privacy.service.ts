@@ -5,7 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import { AuditLogService } from '../audit/audit-log.service';
+import { AuditLogService, AuditMetadata } from '../audit/audit-log.service';
 import {
   AnonymizeReason,
   ReservationSnapshot,
@@ -105,15 +105,16 @@ export class PrivacyService {
     private readonly audit: AuditLogService,
   ) {}
 
-  async exportGuestData(actor: string, email: string): Promise<PrivacyExportResponse> {
+  async exportGuestData(
+    actor: string,
+    email: string,
+    audit?: AuditMetadata,
+  ): Promise<PrivacyExportResponse> {
     const normalizedEmail = this.normalizeEmailInput(email);
     const searchToken = this.resolveEmailSearch(normalizedEmail);
     const reservations = await this.prisma.reservation.findMany({
       where: { guestEmailSearch: searchToken },
-      orderBy: [
-        { slotStartUtc: 'asc' },
-        { createdAt: 'asc' },
-      ],
+      orderBy: [{ slotStartUtc: 'asc' }, { createdAt: 'asc' }],
       include: {
         venue: { select: { id: true, name: true } },
         hold: { include: { table: true } },
@@ -136,12 +137,21 @@ export class PrivacyService {
         count: reservations.length,
       },
       after: null,
+      route: audit?.route,
+      method: audit?.method,
+      statusCode: audit?.statusCode ?? 200,
+      requestId: audit?.requestId,
+      tenantId: audit?.tenantId,
     });
 
     return payload;
   }
 
-  async eraseGuestData(actor: string, email: string): Promise<PrivacyEraseResponse> {
+  async eraseGuestData(
+    actor: string,
+    email: string,
+    audit?: AuditMetadata,
+  ): Promise<PrivacyEraseResponse> {
     const normalizedEmail = this.normalizeEmailInput(email);
     const searchToken = this.resolveEmailSearch(normalizedEmail);
     const reservations = await this.prisma.reservation.findMany({
@@ -244,6 +254,11 @@ export class PrivacyService {
         ),
         skipped,
       },
+      route: audit?.route,
+      method: audit?.method,
+      statusCode: audit?.statusCode ?? 200,
+      requestId: audit?.requestId,
+      tenantId: audit?.tenantId,
     });
 
     return {
@@ -382,7 +397,9 @@ export class PrivacyService {
     updates: Array<{ reservation: ErasureReservation }>,
     now: Date,
   ) {
-    const updatableIds = new Set(updates.map(({ reservation }) => reservation.id));
+    const updatableIds = new Set(
+      updates.map(({ reservation }) => reservation.id),
+    );
     return reservations
       .filter((reservation) => !updatableIds.has(reservation.id))
       .map((reservation) => ({
@@ -390,8 +407,8 @@ export class PrivacyService {
         reason: reservation.piiAnonymizedAt
           ? 'already-anonymized'
           : reservation.slotStartUtc > now
-          ? 'future-reservation'
-          : 'policy-restricted',
+            ? 'future-reservation'
+            : 'policy-restricted',
       }));
   }
 

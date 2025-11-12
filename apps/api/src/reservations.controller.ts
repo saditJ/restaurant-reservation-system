@@ -21,13 +21,17 @@ import { ReservationStatus } from '@prisma/client';
 import { UpdateReservationDto } from './dto/update-reservation.dto';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ApiKeyGuard } from './auth/api-key.guard';
+import { Public } from './common/decorators/public.decorator';
 import { IdempotencyInterceptor } from './idempotency/idempotency.interceptor';
 import { RateLimitGuard } from './rate-limit/rate-limit.guard';
 import { RateLimit } from './rate-limit/rate-limit.decorator';
 
 @Controller('v1/reservations')
 export class ReservationsController {
-  constructor(private readonly reservations: ReservationsService, private readonly seating: SeatingService) {}
+  constructor(
+    private readonly reservations: ReservationsService,
+    private readonly seating: SeatingService,
+  ) {}
 
   @Get()
   list(
@@ -60,6 +64,12 @@ export class ReservationsController {
     });
   }
 
+  @Public()
+  @Get('by-code/:code')
+  getByCode(@Param('code') code: string) {
+    return this.reservations.findByCode(code);
+  }
+
   @UseGuards(ApiKeyGuard, RateLimitGuard)
   @RateLimit({ requestsPerMinute: 180, burstLimit: 90 })
   @UseInterceptors(IdempotencyInterceptor)
@@ -79,8 +89,8 @@ export class ReservationsController {
       typeof raw === 'number'
         ? raw
         : typeof raw === 'string'
-        ? Number(raw)
-        : undefined;
+          ? Number(raw)
+          : undefined;
     const limit =
       Number.isFinite(parsed) && parsed && parsed > 0
         ? Math.min(Math.floor(parsed), 10)
@@ -97,7 +107,7 @@ export class ReservationsController {
     const incoming = body?.tableIds;
     let tableIds: string[] = [];
     if (Array.isArray(incoming)) {
-      tableIds = incoming as string[];
+      tableIds = incoming;
     } else if (typeof incoming === 'string') {
       tableIds = [incoming];
     }
@@ -110,7 +120,7 @@ export class ReservationsController {
     return ['1', 'true', 'yes', 'on'].includes(normalized);
   }
 
-  @UseGuards(ApiKeyGuard, RateLimitGuard)
+  @Public()
   @RateLimit({ requestsPerMinute: 240, burstLimit: 120 })
   @Patch(':id')
   update(

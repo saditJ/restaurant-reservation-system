@@ -1,11 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Put,
-  Query,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -47,7 +40,10 @@ class UpsertServiceBufferDto {
   afterMinutes?: number;
 }
 
-function toSummary(entry: ServiceBuffer | null, venueId: string): ServiceBufferSummary {
+function toSummary(
+  entry: ServiceBuffer | null,
+  venueId: string,
+): ServiceBufferSummary {
   return {
     venueId,
     beforeMinutes: entry?.beforeMinutes ?? 0,

@@ -15,7 +15,7 @@ function withTenantWhere(
   tenantId: string,
 ): Record<string, unknown> {
   const where = {
-    ...(((args.where as Record<string, unknown> | undefined) ?? {})),
+    ...((args.where as Record<string, unknown> | undefined) ?? {}),
   };
   where.tenantId = tenantId;
   return { ...args, where };

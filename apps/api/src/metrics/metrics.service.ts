@@ -39,7 +39,9 @@ type NotificationMetricsSnapshot = {
 @Injectable()
 export class MetricsService implements OnModuleInit {
   private readonly registry = new Registry();
-  private readonly httpRequestDuration: Histogram<'method' | 'route' | 'status_code'>;
+  private readonly httpRequestDuration: Histogram<
+    'method' | 'route' | 'status_code'
+  >;
   private readonly notificationsEnqueued: Gauge;
   private readonly notificationsSent: Gauge;
   private readonly notificationsFailed: Gauge;
@@ -178,7 +180,9 @@ export class MetricsService implements OnModuleInit {
   }
 
   observeHttpRequest(labels: HttpDurationLabels, durationSeconds: number) {
-    const sanitizedRoute = labels.route.startsWith('/') ? labels.route : `/${labels.route}`;
+    const sanitizedRoute = labels.route.startsWith('/')
+      ? labels.route
+      : `/${labels.route}`;
 
     this.httpRequestDuration.observe(
       {
@@ -220,10 +224,7 @@ export class MetricsService implements OnModuleInit {
       }),
       prisma.notificationOutbox.groupBy({
         by: ['type', 'status'],
-        orderBy: [
-          { type: 'asc' },
-          { status: 'asc' },
-        ],
+        orderBy: [{ type: 'asc' }, { status: 'asc' }],
         _sum: { attempts: true },
       }),
       prisma.notificationOutbox.count({
@@ -251,11 +252,13 @@ export class MetricsService implements OnModuleInit {
       }),
     ]);
 
-    const attemptSamples = attempts.map<NotificationAttemptSnapshot>((item) => ({
-      type: sanitizeType(item.type),
-      status: item.status,
-      attempts: item._sum?.attempts ?? 0,
-    }));
+    const attemptSamples = attempts.map<NotificationAttemptSnapshot>(
+      (item) => ({
+        type: sanitizeType(item.type),
+        status: item.status,
+        attempts: item._sum?.attempts ?? 0,
+      }),
+    );
 
     const latencySamples = latencyRows
       .map<NotificationLatencySample | null>((row) => {

@@ -33,7 +33,7 @@ export class CacheMetricsInterceptor implements NestInterceptor {
     }
     if (request) {
       // Reset so repeated interceptors don't double count.
-      // eslint-disable-next-line no-param-reassign
+
       request.cacheStatus = undefined;
     }
   }

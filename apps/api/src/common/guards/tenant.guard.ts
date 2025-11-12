@@ -1,4 +1,9 @@
-import { CanActivate, ExecutionContext, Injectable, BadRequestException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  BadRequestException,
+} from '@nestjs/common';
 
 @Injectable()
 export class TenantGuard implements CanActivate {
@@ -15,7 +20,8 @@ export class TenantGuard implements CanActivate {
     if (headerTenant) req.tenantId = headerTenant;
 
     if (isPublic) return true;
-    if (!req.tenantId) throw new BadRequestException('Tenant context is required');
+    if (!req.tenantId)
+      throw new BadRequestException('Tenant context is required');
     return true;
   }
 }

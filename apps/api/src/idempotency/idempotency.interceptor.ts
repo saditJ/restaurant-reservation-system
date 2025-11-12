@@ -55,28 +55,33 @@ export class IdempotencyInterceptor implements NestInterceptor {
             this.stripQuery(existing.path) !== this.stripQuery(meta.path)
           ) {
             this.metrics.incrementIdempotencyConflict();
-            return throwError(() =>
-              new ConflictException({
-                error: {
-                  code: 'CONFLICT',
-                  message: 'Idempotency key reuse with different route',
-                },
-              }),
+            return throwError(
+              () =>
+                new ConflictException({
+                  error: {
+                    code: 'CONFLICT',
+                    message: 'Idempotency key reuse with different route',
+                  },
+                }),
             );
           }
           if (existing.bodyHash !== meta.bodyHash) {
             this.metrics.incrementIdempotencyConflict();
-            return throwError(() =>
-              new ConflictException({
-                error: {
-                  code: 'CONFLICT',
-                  message:
-                    'Idempotency key reuse with different payload',
-                },
-              }),
+            return throwError(
+              () =>
+                new ConflictException({
+                  error: {
+                    code: 'CONFLICT',
+                    message: 'Idempotency key reuse with different payload',
+                  },
+                }),
             );
           }
-          this.applyStoredResponse(response, existing.status, existing.response);
+          this.applyStoredResponse(
+            response,
+            existing.status,
+            existing.response,
+          );
           this.metrics.incrementIdempotencyHit();
           return of(existing.response.body);
         }
@@ -87,13 +92,14 @@ export class IdempotencyInterceptor implements NestInterceptor {
             if (!acquired) {
               // Lock not acquired, return 409 conflict (request in progress)
               this.metrics.incrementIdempotencyConflict();
-              return throwError(() =>
-                new ConflictException({
-                  error: {
-                    code: 'CONFLICT',
-                    message: 'Request already in progress',
-                  },
-                }),
+              return throwError(
+                () =>
+                  new ConflictException({
+                    error: {
+                      code: 'CONFLICT',
+                      message: 'Request already in progress',
+                    },
+                  }),
               );
             }
 
@@ -137,14 +143,13 @@ export class IdempotencyInterceptor implements NestInterceptor {
 
   private buildMetadata(request: Request): RequestMetadata | null {
     const rawKey =
-      request.header('idempotency-key') ??
-      request.headers['idempotency-key'];
+      request.header('idempotency-key') ?? request.headers['idempotency-key'];
     const key = this.idempotency.normalizeKey(
       typeof rawKey === 'string'
         ? rawKey
         : Array.isArray(rawKey)
-        ? rawKey[0]
-        : null,
+          ? rawKey[0]
+          : null,
     );
     if (!key) return null;
     const method = (request.method || 'POST').toUpperCase();
@@ -166,7 +171,10 @@ export class IdempotencyInterceptor implements NestInterceptor {
     response.status(status);
     if (stored.headers) {
       for (const [header, value] of Object.entries(stored.headers)) {
-        if (value !== undefined && !EXCLUDED_HEADERS.has(header.toLowerCase())) {
+        if (
+          value !== undefined &&
+          !EXCLUDED_HEADERS.has(header.toLowerCase())
+        ) {
           response.setHeader(header, value);
         }
       }

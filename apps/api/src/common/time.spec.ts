@@ -18,7 +18,7 @@ describe('DST-safe time utilities', () => {
     it('should handle midnight correctly on DST transition day', () => {
       const midnight = startOfDayTz(springForwardDate, timezone);
       expect(midnight).toBeInstanceOf(Date);
-      
+
       const local = fromUTC(midnight, timezone);
       expect(local.date).toBe(springForwardDate);
       expect(local.time).toBe('00:00');
@@ -29,7 +29,7 @@ describe('DST-safe time utilities', () => {
       // Should result in 3:30 AM (not 2:30 AM, since 2:00-3:00 doesn't exist)
       const utc130am = toUTC(springForwardDate, '01:30', timezone);
       const utc330am = addMinutesTz(utc130am, 60, timezone);
-      
+
       const local = fromUTC(utc330am, timezone);
       expect(local.date).toBe(springForwardDate);
       // Note: The actual behavior depends on date-fns-tz implementation
@@ -40,12 +40,14 @@ describe('DST-safe time utilities', () => {
     it('should generate continuous slots across DST transition', () => {
       const slots: Array<{ date: string; time: string }> = [];
       let currentTime = toUTC(springForwardDate, '01:00', timezone);
-      
+
       // Generate 5 slots, 30 minutes apart
       for (let i = 0; i < 5; i++) {
         slots.push(fromUTC(currentTime, timezone));
         currentTime = addMinutesTz(currentTime, 30, timezone);
       }
+
+      // (debug logging removed)
 
       // Verify all slots are valid
       expect(slots.length).toBe(5);
@@ -73,7 +75,7 @@ describe('DST-safe time utilities', () => {
     it('should handle midnight correctly on DST transition day', () => {
       const midnight = startOfDayTz(fallBackDate, timezone);
       expect(midnight).toBeInstanceOf(Date);
-      
+
       const local = fromUTC(midnight, timezone);
       expect(local.date).toBe(fallBackDate);
       expect(local.time).toBe('00:00');
@@ -84,7 +86,7 @@ describe('DST-safe time utilities', () => {
       // Should result in 3:00 AM after the fall-back
       const utc130am = toUTC(fallBackDate, '01:30', timezone);
       const utc3am = addMinutesTz(utc130am, 90, timezone);
-      
+
       const local = fromUTC(utc3am, timezone);
       expect(local.date).toBe(fallBackDate);
       expect(local.time).toMatch(/^\d{2}:\d{2}$/);
@@ -93,7 +95,7 @@ describe('DST-safe time utilities', () => {
     it('should generate continuous slots across DST transition', () => {
       const slots: Array<{ date: string; time: string }> = [];
       let currentTime = toUTC(fallBackDate, '01:00', timezone);
-      
+
       // Generate 5 slots, 30 minutes apart
       for (let i = 0; i < 5; i++) {
         slots.push(fromUTC(currentTime, timezone));
@@ -142,7 +144,7 @@ describe('DST-safe time utilities', () => {
     it('should handle times correctly in non-DST timezone', () => {
       const utc = toUTC(regularDate, '14:30', timezone);
       const local = fromUTC(utc, timezone);
-      
+
       expect(local.date).toBe(regularDate);
       expect(local.time).toBe('14:30');
     });
@@ -151,7 +153,7 @@ describe('DST-safe time utilities', () => {
       const utc = toUTC(regularDate, '10:00', timezone);
       const later = addMinutesTz(utc, 90, timezone);
       const local = fromUTC(later, timezone);
-      
+
       expect(local.time).toBe('11:30');
     });
   });

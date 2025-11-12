@@ -78,7 +78,7 @@ export class NotificationsService {
             payload,
             status: NotificationOutboxStatus.PENDING,
             scheduledAt,
-            reservation: { connect: { id: snapshot!.id } },
+            reservation: { connect: { id: snapshot.id } },
             guestContact: contact,
           },
         });

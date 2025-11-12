@@ -126,7 +126,11 @@ export function computeAvailability(input: EngineInput): EngineOutput {
   );
 
   // 2) Apply blackout dates
-  const afterBlackout = applyBlackouts(baseSlots, blackoutDates, venue.timezone);
+  const afterBlackout = applyBlackouts(
+    baseSlots,
+    blackoutDates,
+    venue.timezone,
+  );
 
   // 3) Apply service buffer (lead/trailing minutes)
   const afterBuffer = applyServiceBuffer(afterBlackout, serviceBuffer);
@@ -155,7 +159,8 @@ export function computeAvailability(input: EngineInput): EngineOutput {
   const slotsWithOccupancy = afterBuffer.map((slot) => {
     const slotEnd = new Date(
       new Date(slot.startUtc).getTime() +
-        (rule.slotLengthMinutes + turnTimeMinutes + rule.bufferMinutes) * 60_000,
+        (rule.slotLengthMinutes + turnTimeMinutes + rule.bufferMinutes) *
+          60_000,
     );
 
     const occupiedTables = computeOccupiedTables(
@@ -216,7 +221,9 @@ export function computeAvailability(input: EngineInput): EngineOutput {
   });
 
   const totalSlots = formattedSlots.length;
-  const availableSlots = formattedSlots.filter((s) => s.capacityAvailable > 0).length;
+  const availableSlots = formattedSlots.filter(
+    (s) => s.capacityAvailable > 0,
+  ).length;
   const blockedSlots = totalSlots - availableSlots;
 
   return {
@@ -358,7 +365,9 @@ function computeOccupiedTables(
 
     const holdEnd = new Date(
       hold.slotStartUtc.getTime() +
-        (defaultRule.slotLengthMinutes + turnTimeMinutes + defaultRule.bufferMinutes) *
+        (defaultRule.slotLengthMinutes +
+          turnTimeMinutes +
+          defaultRule.bufferMinutes) *
           60_000,
     );
 

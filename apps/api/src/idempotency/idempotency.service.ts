@@ -136,19 +136,25 @@ export class IdempotencyService {
         );
         return result === 'OK';
       } catch (error) {
-        this.logger.warn(`Failed to acquire Redis lock for ${key}: ${(error as Error).message}`);
+        this.logger.warn(
+          `Failed to acquire Redis lock for ${key}: ${(error as Error).message}`,
+        );
         return false;
       }
     }
     // Fallback: use Postgres advisory lock (session-level, auto-released on disconnect)
     try {
       const lockId = this.hashToLockId(key);
-      const result = await this.prisma.$queryRaw<Array<{ pg_try_advisory_lock: boolean }>>`
+      const result = await this.prisma.$queryRaw<
+        Array<{ pg_try_advisory_lock: boolean }>
+      >`
         SELECT pg_try_advisory_lock(${lockId}) as pg_try_advisory_lock
       `;
       return result[0]?.pg_try_advisory_lock ?? false;
     } catch (error) {
-      this.logger.warn(`Failed to acquire Postgres lock for ${key}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to acquire Postgres lock for ${key}: ${(error as Error).message}`,
+      );
       return false;
     }
   }
@@ -159,7 +165,9 @@ export class IdempotencyService {
         const lockKey = `lock:idem:${key}`;
         await this.redis.del(lockKey);
       } catch (error) {
-        this.logger.warn(`Failed to release Redis lock for ${key}: ${(error as Error).message}`);
+        this.logger.warn(
+          `Failed to release Redis lock for ${key}: ${(error as Error).message}`,
+        );
       }
       return;
     }
@@ -168,7 +176,9 @@ export class IdempotencyService {
       const lockId = this.hashToLockId(key);
       await this.prisma.$queryRaw`SELECT pg_advisory_unlock(${lockId})`;
     } catch (error) {
-      this.logger.warn(`Failed to release Postgres lock for ${key}: ${(error as Error).message}`);
+      this.logger.warn(
+        `Failed to release Postgres lock for ${key}: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -240,7 +250,11 @@ export class IdempotencyService {
     const record = value as Record<string, unknown>;
     const headersRaw = record.headers;
     const headers: Record<string, string> = {};
-    if (headersRaw && typeof headersRaw === 'object' && !Array.isArray(headersRaw)) {
+    if (
+      headersRaw &&
+      typeof headersRaw === 'object' &&
+      !Array.isArray(headersRaw)
+    ) {
       for (const [key, headerValue] of Object.entries(
         headersRaw as Record<string, unknown>,
       )) {
@@ -256,4 +270,3 @@ export class IdempotencyService {
     };
   }
 }
-

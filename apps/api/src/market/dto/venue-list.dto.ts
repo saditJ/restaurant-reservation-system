@@ -1,5 +1,16 @@
-import { IsOptional, IsString, IsInt, Min, Max, IsNumber, IsBoolean } from 'class-validator';
-import { Type } from 'class-transformer';
+import {
+  IsOptional,
+  IsString,
+  IsInt,
+  Min,
+  Max,
+  IsNumber,
+  IsBoolean,
+  IsArray,
+  ArrayMaxSize,
+} from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { toNumberArray, toStringArray } from './transform.utils';
 
 export class VenueSearchDto {
   @IsOptional()
@@ -7,19 +18,27 @@ export class VenueSearchDto {
   query?: string;
 
   @IsOptional()
-  @IsString()
-  city?: string;
+  @Transform(({ value }) => toStringArray(value))
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  city?: string[];
 
   @IsOptional()
-  @IsString()
-  cuisine?: string;
+  @Transform(({ value }) => toStringArray(value))
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  cuisine?: string[];
 
   @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(4)
-  @Type(() => Number)
-  priceLevel?: number;
+  @Transform(({ value }) => toNumberArray(value))
+  @IsArray()
+  @ArrayMaxSize(10)
+  @IsInt({ each: true })
+  @Min(1, { each: true })
+  @Max(4, { each: true })
+  priceLevel?: number[];
 
   @IsOptional()
   @IsNumber()
@@ -39,7 +58,11 @@ export class VenueSearchDto {
 
   @IsOptional()
   @IsString()
-  sortBy?: 'popular' | 'rating' | 'priceAsc' | 'priceDesc' | 'distance';
+  sort?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
 
   @IsOptional()
   @IsNumber()

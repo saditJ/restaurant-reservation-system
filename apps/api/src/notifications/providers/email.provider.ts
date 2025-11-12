@@ -19,8 +19,7 @@ export class EmailNotificationProvider {
       newline: 'unix',
     });
     this.from =
-      process.env.NOTIFICATIONS_EMAIL_FROM ??
-      'reservations@example.test';
+      process.env.NOTIFICATIONS_EMAIL_FROM ?? 'reservations@example.test';
   }
 
   async send(payload: EmailPayload): Promise<void> {

@@ -12,7 +12,14 @@ import { WebhookDeliveryStatus } from '@prisma/client';
 import { ApiKeyGuard } from '../auth/api-key.guard';
 import { RateLimitGuard } from '../rate-limit/rate-limit.guard';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
-import { ApiCreatedResponse, ApiOkResponse, ApiParam, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import {
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiParam,
+  ApiQuery,
+  ApiSecurity,
+  ApiTags,
+} from '@nestjs/swagger';
 import type { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
 import { WebhooksAdminService } from './webhooks.admin.service';
 import { CreateWebhookEndpointDto } from './dto/create-webhook-endpoint.dto';
@@ -29,10 +36,38 @@ const WebhookEndpointSchema: SchemaObject = {
     url: { type: 'string', format: 'uri' },
     description: { type: 'string', nullable: true },
     isActive: { type: 'boolean' },
+    events: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: [
+          'reservation.created',
+          'reservation.updated',
+          'reservation.cancelled',
+          'reservation.seated',
+          'reservation.completed',
+        ],
+      },
+    },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
+    secretPreview: {
+      type: 'object',
+      nullable: true,
+      properties: {
+        endpointId: { type: 'string' },
+        lastFour: { type: 'string' },
+        secretCreatedAt: { type: 'string', format: 'date-time' },
+        secretRotatedAt: {
+          type: 'string',
+          format: 'date-time',
+          nullable: true,
+        },
+      },
+    },
+    secret: { type: 'string', nullable: true },
   },
-  required: ['id', 'url', 'isActive', 'createdAt', 'updatedAt'],
+  required: ['id', 'url', 'isActive', 'events', 'createdAt', 'updatedAt'],
 };
 
 const WebhookEndpointListSchema: SchemaObject = {
@@ -115,7 +150,10 @@ const WebhookDeliverySchema: SchemaObject = {
     attempts: { type: 'integer' },
     lastError: { type: 'string', nullable: true },
     nextAttemptAt: { type: 'string', format: 'date-time' },
+    lastAttemptAt: { type: 'string', format: 'date-time' },
     deliveredAt: { type: 'string', format: 'date-time', nullable: true },
+    failureReason: { type: 'string', nullable: true },
+    failedAt: { type: 'string', format: 'date-time', nullable: true },
     createdAt: { type: 'string', format: 'date-time' },
     updatedAt: { type: 'string', format: 'date-time' },
     payload: WebhookPayloadSchema,
@@ -128,6 +166,7 @@ const WebhookDeliverySchema: SchemaObject = {
     'status',
     'attempts',
     'nextAttemptAt',
+    'lastAttemptAt',
     'createdAt',
     'updatedAt',
     'payload',
@@ -149,9 +188,12 @@ const WebhookDeliveryListSchema: SchemaObject = {
 const WebhookSecretSchema: SchemaObject = {
   type: 'object',
   properties: {
-    secret: { type: 'string' },
+    endpointId: { type: 'string' },
+    lastFour: { type: 'string' },
+    secretCreatedAt: { type: 'string', format: 'date-time' },
+    secretRotatedAt: { type: 'string', format: 'date-time', nullable: true },
   },
-  required: ['secret'],
+  required: ['endpointId', 'lastFour', 'secretCreatedAt'],
 };
 
 @ApiTags('Webhooks')
@@ -162,7 +204,9 @@ export class WebhooksController {
   constructor(private readonly webhooks: WebhooksAdminService) {}
 
   @Post('endpoints')
-  @ApiCreatedResponse({ content: { 'application/json': { schema: WebhookEndpointSchema } } })
+  @ApiCreatedResponse({
+    content: { 'application/json': { schema: WebhookEndpointSchema } },
+  })
   createEndpoint(
     @Body() dto: CreateWebhookEndpointDto,
   ): Promise<WebhookEndpointDto> {
@@ -170,7 +214,9 @@ export class WebhooksController {
   }
 
   @Get('endpoints')
-  @ApiOkResponse({ content: { 'application/json': { schema: WebhookEndpointListSchema } } })
+  @ApiOkResponse({
+    content: { 'application/json': { schema: WebhookEndpointListSchema } },
+  })
   listEndpoints(): Promise<WebhookEndpointDto[]> {
     return this.webhooks.listEndpoints();
   }
@@ -195,15 +241,25 @@ export class WebhooksController {
     type: Number,
     description: 'Skip N results for pagination',
   })
-  @ApiOkResponse({ content: { 'application/json': { schema: WebhookDeliveryListSchema } } })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: '1-based page index (takes precedence over offset)',
+  })
+  @ApiOkResponse({
+    content: { 'application/json': { schema: WebhookDeliveryListSchema } },
+  })
   listDeliveries(
     @Query('endpointId') endpointId?: string,
     @Query('status') status?: WebhookDeliveryStatus,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('page') page?: string,
   ): Promise<WebhookDeliveryListResponse> {
     const parsedLimit = limit ? Number(limit) : undefined;
     const parsedOffset = offset ? Number(offset) : undefined;
+    const parsedPage = page ? Number(page) : undefined;
 
     return this.webhooks.listDeliveries({
       endpointId: endpointId?.trim() || undefined,
@@ -216,13 +272,19 @@ export class WebhooksController {
         parsedOffset !== undefined && Number.isFinite(parsedOffset)
           ? parsedOffset
           : undefined,
+      page:
+        parsedPage !== undefined && Number.isFinite(parsedPage)
+          ? parsedPage
+          : undefined,
     });
   }
 
   @ApiParam({ name: 'id', type: String })
   @RateLimit({ requestsPerMinute: 120, burstLimit: 60 })
   @Post('deliveries/:id/redeliver')
-  @ApiOkResponse({ content: { 'application/json': { schema: WebhookDeliverySchema } } })
+  @ApiOkResponse({
+    content: { 'application/json': { schema: WebhookDeliverySchema } },
+  })
   redeliver(@Param('id') id: string) {
     if (!id || typeof id !== 'string') {
       throw new BadRequestException('Invalid delivery id');
@@ -231,13 +293,16 @@ export class WebhooksController {
   }
 
   @Get('secret')
-  @ApiOkResponse({ content: { 'application/json': { schema: WebhookSecretSchema } } })
-  getSecret() {
-    const secret = process.env.WEBHOOK_SECRET?.trim();
-    if (!secret) {
-      throw new BadRequestException('WEBHOOK_SECRET is not configured');
+  @ApiQuery({ name: 'endpointId', required: true, type: String })
+  @ApiOkResponse({
+    content: { 'application/json': { schema: WebhookSecretSchema } },
+  })
+  getSecret(@Query('endpointId') endpointId?: string) {
+    const trimmed = endpointId?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('endpointId query parameter is required');
     }
-    return { secret };
+    return this.webhooks.getSecretPreview(trimmed);
   }
 
   private normalizeStatus(

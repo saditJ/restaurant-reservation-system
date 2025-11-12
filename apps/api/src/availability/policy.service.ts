@@ -89,17 +89,10 @@ export class AvailabilityPolicyService {
         timezone: true,
         shifts: {
           where: { isActive: true },
-          orderBy: [
-            { dow: 'asc' },
-            { startsAtLocal: 'asc' },
-            { id: 'asc' },
-          ],
+          orderBy: [{ dow: 'asc' }, { startsAtLocal: 'asc' }, { id: 'asc' }],
         },
         pacingRules: {
-          orderBy: [
-            { windowMinutes: 'asc' },
-            { id: 'asc' },
-          ],
+          orderBy: [{ windowMinutes: 'asc' }, { id: 'asc' }],
         },
         blackoutDates: {
           where: {
@@ -160,8 +153,7 @@ export class AvailabilityPolicyService {
     }
 
     const windowMinutes =
-      venue.pacingRules[0]?.windowMinutes ??
-      (venue.shifts.length > 0 ? 15 : 0);
+      venue.pacingRules[0]?.windowMinutes ?? (venue.shifts.length > 0 ? 15 : 0);
     if (windowMinutes <= 0 || venue.shifts.length === 0) {
       return {
         slots: [],
@@ -211,9 +203,7 @@ export class AvailabilityPolicyService {
     const positiveReservation = Number.isFinite(reservationCap)
       ? Math.max(0, reservationCap)
       : 0;
-    const positiveCover = Number.isFinite(coverCap)
-      ? Math.max(0, coverCap)
-      : 0;
+    const positiveCover = Number.isFinite(coverCap) ? Math.max(0, coverCap) : 0;
     return positiveReservation || positiveCover;
   }
 
@@ -261,10 +251,9 @@ export class AvailabilityPolicyService {
   ): PolicySlot {
     const tz = Temporal.TimeZone.from(timezone) as Temporal.TimeZone;
     const startInstant = tz
-      .getInstantFor(
-        date.toPlainDateTime(Temporal.PlainTime.from('00:00')),
-        { disambiguation: 'compatible' },
-      )
+      .getInstantFor(date.toPlainDateTime(Temporal.PlainTime.from('00:00')), {
+        disambiguation: 'compatible',
+      })
       .toZonedDateTimeISO(timezone);
     const endInstant = startInstant.add({ days: 1 });
     return {
@@ -336,10 +325,9 @@ export function generatePolicySlots(args: GenerateSlotsArgs): TemporalSlot[] {
   const day = Temporal.PlainDate.from(date);
 
   const dayStart = tz
-    .getInstantFor(
-      day.toPlainDateTime(Temporal.PlainTime.from('00:00')),
-      { disambiguation: 'compatible' },
-    )
+    .getInstantFor(day.toPlainDateTime(Temporal.PlainTime.from('00:00')), {
+      disambiguation: 'compatible',
+    })
     .toZonedDateTimeISO(timezone);
   const dayEnd = dayStart.add({ days: 1 });
 
@@ -363,12 +351,14 @@ export function generatePolicySlots(args: GenerateSlotsArgs): TemporalSlot[] {
       .getInstantFor(endPlain, { disambiguation: 'compatible' })
       .toZonedDateTimeISO(timezone);
 
-    const clippedStart = Temporal.ZonedDateTime.compare(startZdt, dayStart) < 0
-      ? dayStart
-      : startZdt;
-    const clippedEnd = Temporal.ZonedDateTime.compare(rawEndZdt, dayEnd) > 0
-      ? dayEnd
-      : rawEndZdt;
+    const clippedStart =
+      Temporal.ZonedDateTime.compare(startZdt, dayStart) < 0
+        ? dayStart
+        : startZdt;
+    const clippedEnd =
+      Temporal.ZonedDateTime.compare(rawEndZdt, dayEnd) > 0
+        ? dayEnd
+        : rawEndZdt;
 
     let windowStart = clippedStart.add({
       minutes: buffer.beforeMinutes ?? 0,
@@ -377,9 +367,7 @@ export function generatePolicySlots(args: GenerateSlotsArgs): TemporalSlot[] {
       minutes: buffer.afterMinutes ?? 0,
     });
 
-    if (
-      Temporal.ZonedDateTime.compare(windowStart, dayStart) < 0
-    ) {
+    if (Temporal.ZonedDateTime.compare(windowStart, dayStart) < 0) {
       windowStart = dayStart;
     }
     if (
@@ -388,9 +376,7 @@ export function generatePolicySlots(args: GenerateSlotsArgs): TemporalSlot[] {
     ) {
       continue;
     }
-    if (
-      Temporal.ZonedDateTime.compare(windowEnd, dayEnd) > 0
-    ) {
+    if (Temporal.ZonedDateTime.compare(windowEnd, dayEnd) > 0) {
       windowEnd = dayEnd;
     }
 
@@ -410,19 +396,13 @@ export function generatePolicySlots(args: GenerateSlotsArgs): TemporalSlot[] {
   }
 
   return slots.sort((a, b) =>
-    Temporal.Instant.compare(
-      a.start.toInstant(),
-      b.start.toInstant(),
-    ),
+    Temporal.Instant.compare(a.start.toInstant(), b.start.toInstant()),
   );
 }
 
-function determineRelevantShifts(
-  shifts: ShiftLike[],
-  day: Temporal.PlainDate,
-) {
+function determineRelevantShifts(shifts: ShiftLike[], day: Temporal.PlainDate) {
   const weekday = day.dayOfWeek % 7;
-  const previous = ((weekday + 6) % 7) as number;
+  const previous = (weekday + 6) % 7;
 
   const relevant: Array<{ shift: ShiftLike; startDate: Temporal.PlainDate }> =
     [];
@@ -467,8 +447,9 @@ export function intervalsOverlap(
   const aE = Temporal.Instant.from(aEnd.toISOString());
   const bS = Temporal.Instant.from(bStart.toISOString());
   const bE = Temporal.Instant.from(bEnd.toISOString());
-  return Temporal.Instant.compare(aS, bE) < 0 &&
-    Temporal.Instant.compare(bS, aE) < 0;
+  return (
+    Temporal.Instant.compare(aS, bE) < 0 && Temporal.Instant.compare(bS, aE) < 0
+  );
 }
 
 function formatTime(input: Date) {
